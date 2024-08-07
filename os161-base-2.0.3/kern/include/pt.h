@@ -1,3 +1,6 @@
+#ifndef _PT_H_
+#define _PT_H_
+
 /*
 * Struttura dati per la page table
 */
@@ -34,3 +37,5 @@ paddr_t pt_load_page(vaddr_t, pid_t);
 * @return 0 in caso di successo, -1 in caso di errore
 */
 int free_pages(pid_t);
+
+#endif /* _PT_H_ */

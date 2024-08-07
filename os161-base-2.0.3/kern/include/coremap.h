@@ -1,4 +1,5 @@
-
+#ifndef _VM_COREMAP_H_
+#define _VM_COREMAP_H_
 
 char *bitmapFreeFrames; // bitmap tieni traccia dei frame liberi
 
@@ -15,3 +16,5 @@ int get_frame(void);
 * @param frame l'indice del frame da liberare
 */
 void free_frame(int);
+
+#endif /* _VM_COREMAP_H_ */

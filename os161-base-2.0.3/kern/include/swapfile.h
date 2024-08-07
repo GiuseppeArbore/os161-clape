@@ -1,3 +1,6 @@
+#ifndef _SWAPFILE_H_
+#define _SWAPFILE_H_
+
 /*
 *  Struttura per carcare l'associazione
 * (indirizzo virtuale - pid) -> posizione swapfile
@@ -28,3 +31,5 @@ int load_page(vaddr_t, pid_t, paddr_t);
 * @return 0 in caso di successo, -1 in caso di errore
 */
 int save_page(vaddr_t, pid_t, paddr_t);
+
+#endif /* _SWAPFILE_H_ */
