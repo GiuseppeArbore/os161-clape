@@ -56,3 +56,6 @@ doxygen/
 root/
 toolbuild/
 tools/
+build/
+/Makefile
+kern/compile/
