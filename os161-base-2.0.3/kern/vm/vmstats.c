@@ -46,7 +46,10 @@ void stats_tlb_reload(void)
     stats.tlb_reloads++;
 }
 
-//gestisce le statistiche dei page faults
+/*
+*gestisce le statistiche dei page faults
+*/
+//TODO capire se serve il singolo DISK_FAULT
 void stats_page_fault(int faulttype)
 {
     switch (faulttype)
@@ -58,9 +61,11 @@ void stats_page_fault(int faulttype)
         stats.page_disk_faults++;
         break;
     case ELF_FAULT:
+        stats.page_disk_faults++;
         stats.page_elf_faults++;
         break;
     case SWAPFILE_FAULT:
+        stats.page_disk_faults++;
         stats.page_swapfile_faults++;
         break;
     default:
