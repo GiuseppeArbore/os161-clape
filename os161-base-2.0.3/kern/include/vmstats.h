@@ -9,6 +9,10 @@
 #define  FREE_FAULT 0
 #define  REPLACE_FAULT 1
 
+#define  ZEROED_FAULT 0
+#define  DISK_FAULT 1
+#define  ELF_FAULT 2
+#define  SWAPFILE_FAULT 3
 
 /*
 * Struttura dati per salvare statistiche
@@ -27,7 +31,7 @@ struct stats
     uint32_t page_elf_faults; //numero di page faults per cui è stato necessario caricare una pagine da un file ELF
     uint32_t page_swapfile_faults; //numero di page faults per cui è stato necessario caricare una pagina dallo swapfile
     uint32_t swapfile_writes; //numero di page fault per cui è stato necessario scrivere una pagina sullo swapfile
-};
+} stats;
 
 
 
@@ -71,4 +75,7 @@ void add_tlb_type_fault(int faulttype);
 void add_tlb_invalidation(void);
 void add_tlb_reload(void);
 
+void stats_print(void);
+
+void stats_verify(void);
 #endif /* _VMSTATS_H_ */
