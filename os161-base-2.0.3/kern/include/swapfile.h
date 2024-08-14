@@ -9,6 +9,7 @@
 #include "copyinout.h"
 #include "lib.h"
 #include "vfs.h"
+#include "vmstats.h"
 
 /*
 *  Struttura per caricare l'associazione
@@ -21,27 +22,47 @@ struct swapfile{
 
 };
 
-/*
+struct swap_cell{
+    pid_t pid;
+    vaddr_t vaddr;
+};
+
+/**
 * Questa funzione rimette un frame in RAM
 *
-* @param indirizzo virtuale che causa il page fault
-* @param pid del processo 
-* @param indirizzo fisico del frame da usare
+* @param vaddr_t: indirizzo virtuale che causa il page fault
+* @param pid_t: pid del processo 
+* @param paddr_t: indirizzo fisico del frame da usare
 *
 * @return 0 in caso di successo, -1 in caso di errore
 */
-int load_page(vaddr_t, pid_t, paddr_t);
+int load_swap(vaddr_t, pid_t, paddr_t);
 
-/*
+/**
 * Questa funzione salva un frame nello swapfile
 * Se lo swapfile è maggiore di 90MB, la funzione andrà in kernel panic
 *
-* @param indirizzo virtuale che causa il page fault
-* @param pid del processo
-* @param indirizzo fisico del frame da salvare
+* @param vaddr_t: indirizzo virtuale che causa il page fault
+* @param pid_t: pid del processo
+* @param paddr_t: indirizzo fisico del frame da salvare
 *
 * @return 0 in caso di successo, -1 in caso di errore
 */
-int save_page(vaddr_t, pid_t, paddr_t);
+int store_swap(vaddr_t, pid_t, paddr_t);
+
+/**
+ * Questa funzione inizializza il file di swap. In particolare, alloca le strutture dati necessarie e apre il file che conterrà le pagine.
+*/
+int swap_init(void);
+
+/**
+ * Quando un processo termina, segniamo come libere tutte le sue pagine memorizzate nel file di swap.
+ * 
+ * @param pid_t: pid del processo terminato.
+*/
+void remove_process_from_swap(pid_t);
+
+
+
 
 #endif /* _SWAPFILE_H_ */

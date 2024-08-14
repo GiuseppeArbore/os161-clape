@@ -35,13 +35,13 @@ void add_tlb_fault(int faulttype)
 }
 
 //gestisce le statistiche delle invalidazioni della TLB
-void stats_tlb_invalidation(void)
+void add_tlb_invalidation(void)
 {
     stats.tlb_invalidations++;
 }
 
 //gestisce le statistiche dei reload della TLB
-void stats_tlb_reload(void)
+void add_tlb_reload(void)
 {
     stats.tlb_reloads++;
 }
@@ -50,7 +50,7 @@ void stats_tlb_reload(void)
 *gestisce le statistiche dei page faults
 */
 //TODO capire se serve il singolo DISK_FAULT
-void stats_page_fault(int faulttype)
+void add_page_fault(int faulttype)
 {
     switch (faulttype)
     {
@@ -74,7 +74,7 @@ void stats_page_fault(int faulttype)
 
 }
 
-void stats_swapfile_write(void)
+void add_swapfile_write(void)
 {
     stats.swapfile_writes++;
 }
