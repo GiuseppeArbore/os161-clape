@@ -7,6 +7,8 @@
 
 static int nframes=0; // numero di frame fisici
 
+
+
 /*
 * Funzione per iniziaizzare la bitmap
 */

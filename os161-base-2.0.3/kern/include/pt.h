@@ -18,7 +18,10 @@ struct pt_entry{
     int swap; // flag per sapere se la pagina è nello swapfile
     int elf; // flag per sapere se la pagina è stata caricata da un file ELF
     int pid; // pid del processo a cui appartiene la pagina
-};
+}; //TODO: aggiungere eventuale lock e cv
+//TODO: clapes
+
+
 
 /*
 * struttura dati per informazioni riguardanti la page table
@@ -31,6 +34,8 @@ struct pt_info{
     //todo: aggiungeere eventuale lock e cv
 
 }; 
+
+struct pt_info *page_table; // CLAPE nostra page table
 
 /*
 * Questa funzione inizializza la page table
