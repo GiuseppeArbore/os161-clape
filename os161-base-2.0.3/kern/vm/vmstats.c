@@ -17,7 +17,7 @@ void stats_init(void)
 }
 
 //gestisce le statistiche dei fault della TLB
-void stats_tlb_fault(int faulttype)
+void add_tlb_fault(int faulttype)
 {
     stats.tlb_faults++;
     switch (faulttype)

@@ -1,11 +1,23 @@
 #ifndef _SWAPFILE_H_
 #define _SWAPFILE_H_
 
+#include "types.h"
+#include "addrspace.h"
+#include "kern/fcntl.h"
+#include "uio.h"
+#include "vnode.h"
+#include "copyinout.h"
+#include "lib.h"
+#include "vfs.h"
+
 /*
-*  Struttura per carcare l'associazione
+*  Struttura per caricare l'associazione
 * (indirizzo virtuale - pid) -> posizione swapfile
 */
 struct swapfile{
+    struct swap_cell *elements;
+    struct vnode *v;
+    size_t size;
 
 };
 

@@ -47,11 +47,11 @@ int tlb_insert(vaddr_t faultvaddr, paddr_t faultpaddr){
     for(entry = 0; entry < NUM_TLB; entry++){
         valid = tlb_entry_is_valid(entry);
         if(!valid){
-            
+                
                 hi = faultvaddr;
                 lo = faultpaddr | TLBLO_VALID;
                 /*is the segment a text segment?*/
-               if( readonly){
+               if(!readonly){
                     /*Devo impostare un bit di dirty che essenzialmente è un privilegio di scrittura*/
                     lo = lo | TLBLO_DIRTY; 
                 }
@@ -67,8 +67,8 @@ int tlb_insert(vaddr_t faultvaddr, paddr_t faultpaddr){
     entry = tlb_victim();
     hi = faultvaddr;
     lo = faultpaddr | TLBLO_VALID;
-    /
-    if( readonly){
+    
+    if(!readonly){
         /*Devo impostare un bit di dirty che essenzialmente è un privilegio di scrittura*/
         lo = lo | TLBLO_DIRTY; 
     }
@@ -78,7 +78,7 @@ int tlb_insert(vaddr_t faultvaddr, paddr_t faultpaddr){
     
     tlb_write(hi, lo, entry);
     /*update tlb faults replace*/
-    add_tlb_type_fault(FREE_FAULT); //TO DO: implementare add_tlb_type_fault, capire esattamente quale fault
+    add_tlb_fault(FREE_FAULT); 
     return 0;
 
 }

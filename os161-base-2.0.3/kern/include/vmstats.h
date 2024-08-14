@@ -45,35 +45,36 @@ void stats_init(void);
 *
 * @param: tipo di fault
 */
-void stats_tlb_fault(int faulttype);
+void add_tlb_fault(int faulttype);
 
 /*
 * funzione per gestire statistiche delle invalidazioni della TLB
 */
-void stats_tlb_invalidation(void);
+void add_tlb_invalidation(void);
 
 /* 
 * funzione per gestire statistiche dei reload della TLB
 */
-void stats_tlb_reload(void);
+void add_tlb_reload(void);
 
 /*
 * funzione per gestire le statistiche page faults (Zeroed, Disk, ELF, Swapfile)
 *
 * @param: tipo di page fault
 */
-void stats_page_fault(int faulttype);
+void add_page_fault(int faulttype);
 
 /*  
 * funzione per gestitr le statistiche delle scritture deòòe swapfile
 */
-void stats_swapfile_write(void);
+void add_swapfile_write(void);
 
-/*UTILITY FUNCTIONS*/
+/*UTILITY FUNCTIONS
 void add_tlb_fault(void);
 void add_tlb_type_fault(int faulttype);
 void add_tlb_invalidation(void);
 void add_tlb_reload(void);
+*/
 
 void stats_print(void);
 
