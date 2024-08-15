@@ -1,11 +1,19 @@
 // page tables e manipolazione delle entry della page table
-#define PAGE_SIZE 4096
 
 #define GetValidityBit(x) (x & 0x1)
 #define GetReferenceBit(x) ((x >> 1) & 0x1)
 #define GetTlbBit(x) ((x >> 2) & 0x1)
 #define GetIOBit(x) ((x >> 3) & 0x1)
 #define GetSwapBit(x) ((x >> 4) & 0x1)
+
+#define SetValidityBitOne(x) (x | 0x1)
+#define SetReferenceBitOne(x) (x | 0x2)
+#define SetTlbBitOne(x) (x | 0x4)
+#define SetIOBitOne(x) (x | 0x8)
+
+#define SetReferenceBitZero(x) (x & 0x5)
+#define SetIOBitZero(x) (x & 0x7)
+
 #include "pt.h"
 #include "vmstats.h"
 #include <types.h>
@@ -14,6 +22,10 @@
 #include <coremap.h>
 #include <spinlock.h>
 #include <mainbus.h>
+#include <current.h>
+#include <proc.h>
+
+
 
 #define KMALLOC_PAGE 1
 //TODO: clape ->se vogliamo fare FIFO potrebbe essere utile l'ultimo indice
@@ -27,7 +39,7 @@ int lastIndex = 0;
 * @var: framesForPt: numero di frame che la page table occupa
 */
 void pt_init(void){
-    int num_frames, entry_in_frames, frames_for_pt;
+    int num_frames; // entry_in_frames, frames_for_pt;
     spinlock_acquire(&stealmem_lock);
     num_frames = (mainbus_ramsize() - ram_stealmem) / PAGE_SIZE ; //numero di frame disponibili
 
@@ -87,66 +99,190 @@ static int findspace() {
         if (GetValidityBit(page_table->entries[i].ctrl) || GetIOBit(page_table->entries[i].ctrl) || GetSwapBit(page_table->entries[i].ctrl)){
             return -1;
         }else if(page_table->entries[i].page != KMALLOC_PAGE ){ 
+            // non valido, non in uso io, non in swap, non in kmalloc
             return i; //ritorno l'indice della pagina libera
         }
     }
     return -1;
 }
 
-// TODO: RIVISTO FIN QUI
+
+int find_victim(vaddr_t vaddr, pid_t pid, int s){
+    int i, start_index=lastIndex, first;=0
+    int old_validity=0;
+    pid_t old_pid;
+    vaddr_t old_page;
+
+    for (i = lastIndex;; i = (i+1)%page_table->n_entry)
+    {
+        if (!GetTlbBit(page_table->entries[i].ctrl) && !GetIOBit(page_table->entries[i].ctrl) && page_table->entries[i].page != KMALLOC_PAGE){
+            //se la pagina non è in tlb, non è in IO e non è in kmalloc
+            if(GetReferenceBit(page_table->entries[i].ctrl)==0){
+                //se il bit di riferimento è a 0 -> vittima trovata
+                //faccio ulteriori controlli
+                KASSERT(!GetIOBit(page_table->entries[i].ctrl));
+                KASSERT(!GetSwapBit(page_table->entries[i].ctrl));
+                KASSERT(GetTlbBit(page_table->entries[i].ctrl));
+                KASSERT(page_table->entries[i].page != KMALLOC_PAGE);
+
+                old_pid = page_table->entries[i].pid;
+                old_validity = GetValidityBit(page_table->entries[i].ctrl);
+                old_page = page_table->entries[i].page;
+
+                page_table->entries[i].pid = pid;
+                page_table->entries[i].page = vaddr;
+                page_table->entries[i].ctrl=SetIOBitOne(page_table->entries[i].ctrl);
+                page_table->entries[i].ctrl=SetValidityBitOne(page_table->entries[i].ctrl);
+
+                if (old_validity){
+                    store_swap(old_page, old_pid * PAGE_SIZE + page_table->first_free_paddr ); //   CLAPE: da implementare0
+                }
+                lastIndex = (i+1)%page_table->n_entry;
+                return i;
+            }else{
+                page_table->entries[i].ctrl = SetReferenceBitZero(page_table->entries[i].ctrl);
+            }
+        }
+        
+
+        if((i+1)%page_table->n_entry == start_index){
+            if(first){
+                lock_acquire(page_table->pt_lock);
+                splx(s);
+                cv_wait(page_table->pt_cv, page_table->pt_lock);
+                spl=splhigh();
+                lock_release(page_table->pt_lock);
+            }else{
+                first=1;
+                continue;
+            }
+
+
+        }
+
+        
+    }
+    panic("Non dovrebbe arrivare qui, non è riuscito a trovare vittime");
+}
 
 /*
 * funzione per ottenere l'indirizzo fisico di un indirizzo logico
 */
-paddr_t pt_get_paddr(vaddr_t vaddr, pid_t pid){
-    if(!pt_active){
-        return 0;
-    }
-    for(int i=0; i<page_table->n_entry; i++){
-        if(page_table->entries[i].vaddr == vaddr && page_table->entries[i].pid == pid && page_table->entries[i].valid){
+paddr_t pt_get_paddr(vaddr_t vaddr, pid_t pid, int s){
+    int validity, stopped;
+
+    stopped = 1;    //ciclo di attesa attivo
+
+    while (stopped){
+        stopped=0; //ciclo di attesa disattivato
+        for (int i=0; i<page_table->n_entry; i++){  //scorro la page table
+            if (GetValidityBit(page_table->entries[i].ctrl)){
+                //voce valida
+                if (page_table->entries[i].pid==pid && page_table->entries[i].vaddr==vaddr){
+                    //voce corrisponde a quella cercata
+                    lock_acquire(page_table->entries[i].entry_lock); //acquisisco lock
+                    while(GetIOBit(page_table->entries[i].ctrl)){ //se coinvolto in IO continuo a ciclare
+                        stopped=1; //ciclo di attesa attivo
+                        splx(s); //abilito interrupts
+                        cv_wait(page_table->entries[i].entry_cv, page_table->entries[i].entry_lock); //attendo
+                        spl=splhigh(); //disabilito interrupts
+                        //CLAPE
+                    }
+                    lock_release(page_table->entries[i].entry_lock); //rilascio lock
+                    if (vaddr!=page_table->entries[i].vaddr || pid!=page_table->entries[i].pid || GetValidityBit(page_table->entries[i].ctrl)==0){
+                        //se la voce non corrisponde a quella cercata o non è valida
+                        stopped=1; //ciclo di attesa attivo
+                        continue;
+                    }
+
+                    // verifiche su bit di controllo
+                    KASSERT(!GetIOBit(page_table->entries[i].ctrl)); 
+                    KASSERT(!GetTlbBit(page_table->entries[i].ctrl));
+                    KASSERT(page_table->entries[i].page=KMALLOC_PAGE);
+
+                    page_table->entries[i].ctrl=SetTlbBitOne(page_table->entries[i].ctrl); //setto bit tlb ad 1
+                    return i*PAGE_SIZE + page_table->first_free_paddr; //ritorno l'indirizzo fisico
+
+                    
+                }
+                
+            }
             
-            //TODO: clape:_ ci sono alcuni bit da settare per la gestione della page table
-            //es: bit che indica pagina usata
-            //es: bit che indica pagina è in tlb
-            return page_table->entries[i].paddr;
+
         }
     }
-    return NULL; //in caso di non trovato
-}
-/*
-* funzione per caricare una nuova pagina nella memoria fisica
-* e di aggiornare la Page Table e la TLB 
-*/
-paddr_t pt_load_page(vaddr_t vaddr, pid_t pid){
-    if(!pt_active){
-        return 0;
-    }
-    int i;
-    for(i=0; i<page_table->n_entry; i++){
-        if(!page_table->entries[i].valid){
-            break;
-        }
-    }
-    if(i == page_table->n_entry){
-    }
- //TODO: devo finirla :: kjdfnvbkjldf
+
+    return -1; //in caso di non trovato nell'IPT
 }
 
 
+//TODO: CLAPE rivedere perchè sono stanco
+paddr_t get_page(vaddr_t v, int spl)
+{
 
-int free_pages(pid_t pid){
-    int count = 0;
+    pid_t pid = proc_getpid(curproc); // pid corrente TODO: importare
+    int res;
+    paddr_t phisical;
+    res = pt_get_paddr(v, pid, spl);
+
+    if (res != -1)
+    {
+        phisical = (paddr_t) res;
+        add_tlb_reload();
+        return phisical;
+    }
+
+
+    int pos = findspace(v,pid); 
+    if (pos == -1) //non trovato libero, cerco vittima
+    {
+        pos = find_victim(v, pid, spl);
+        KASSERT(pos<page_table->n_entry);
+        phisical = page_table->first_free_paddr + pos*PAGE_SIZE;
+    }
+    else{
+        KASSERT(pos<page_table->first_free_paddr);
+        phisical = page_table->first_free_paddr + pos*PAGE_SIZE;
+        page_table->entries[pos].ctrl= SetValidityBitOne(page_table->entries[pos].ctrl);
+        page_table->entries[pos].ctrl= SetIOBitOne(page_table->entries[pos].ctrl);
+        page_table->entries[pos].page = v;
+        page_table->entries[pos].pid = pid;
+    }
+
+    KASSERT(page_table->entries[pos].page !=KMALLOC_PAGE);
+    load_page(v, pid, phisical, spl);
+    page_table->entries[pos].ctrl = SetIOBitZero(page_table->entries[pos].ctrl );
+    lock_acquire(page_table->entries[pos].entry_lock);
+    cv_broadcast(page_table->entries[pos].entry_cv,page_table->entries[pos].entry_lock);
+    lock_release(page_table->entries[pos].entry_lock);
+    lock_acquire(page_table->pt_lock);
+    cv_broadcast(page_table->pt_cv,page_table->pt_lock);
+    lock_release(page_table->pt_lock);
+    page_table->entries[pos].ctrl = SetTlbBitOne(page_table->entries[pos].ctrl);
+
+    return phisical;
+}
+
+
+//TODO: clape -> da rivedere se vanno aggiunti ulteriori controlli
+void free_pages(pid_t pid){
     for(int i=0; i<page_table->n_entry; i++){
-        if(page_table->entries[i].pid == pid){
-            page_table->entries[i].valid = 0;
-            page_table->entries[i].dirty = 0;
-            page_table->entries[i].used = 0;
-            page_table->entries[i].swap = 0;
-            page_table->entries[i].elf = 0;
-            page_table->entries[i].pid = -1;
-            count++;
+        if(page_table->entries[i].pid == pid && GetValidityBit(page_table->entries[i].ctrl) && page_table->entries[i].page != KMALLOC_PAGE){
+            
+            //controllo se la pagina è in uso
+            KASSERT(!GetIOBit(page_table->entries[i].ctrl));
+            KASSERT(page_table->entries[i].page != KMALLOC_PAGE);
+            KASSERT(!GetSwapBit(page_table->entries[i].ctrl));
+
+
+            page_table->entries[i].ctrl = 0;
+            page_table->entries[i].pid = 0;
+            page_table->entries[i].page = 0;
         }
     }
-    return count;
 }
 
+
+void print_nkmalloc(void){
+    kprintf("Final number of kmalloc: %d\n",nkmalloc);
+}

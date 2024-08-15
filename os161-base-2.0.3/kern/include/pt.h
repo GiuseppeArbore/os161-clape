@@ -33,7 +33,7 @@ struct pt_info{
     int *contiguous;    // array di flag per sapere se le pagine sono contigue
     //todo: aggiungeere eventuale lock e cv
 
-} ipt; 
+}; 
 
 struct pt_info *page_table; // CLAPE nostra page table
 
