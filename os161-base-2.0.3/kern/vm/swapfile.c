@@ -132,3 +132,14 @@ int swap_init(void){
 
     return 0;
 }
+
+void remove_process_from_swap(pid_t pid){
+    int i;
+    for(i=0;i<swap->size; i++){
+        if(swap->elements[i].pid==pid){
+            occ--;
+            DEBUG(DB_VM,"Process %d released. Now occ=%d\n",curproc->p_pid,occ);
+            swap->elements[i].pid=-1;
+        }
+    }
+}
