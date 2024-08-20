@@ -3,11 +3,13 @@
 
 #include <types.h>
 #include <addrspace.h>
+#include <synch.h>
 
 
 
 
 int pt_active; // flag per sapere se la page table è attiva
+int nkmalloc; //TODO: CLAPE
 
 /**
 * Struttura dati per gestire la page table
@@ -31,8 +33,8 @@ struct pt_info{
     struct lock *pt_lock; 
     struct cv *pt_cv; 
     int *contiguous;    // array di flag per sapere se le pagine sono contigue
-    //todo: aggiungeere eventuale lock e cv
-
+    //todo: CLAPE aggiungeere eventuale lock e cv
+ 
 }; 
 
 struct pt_info *page_table; // CLAPE nostra page table
@@ -72,7 +74,7 @@ int find_victim(vaddr_t, pid_t, int);
  * @param: pid 
  * @param: int
  */
-int get_page(vaddr_t, pid_t, int);
+paddr_t get_page(vaddr_t, int);
 
 /**
 * Questa funzione carica una nuova pagina dall'elf file.
@@ -84,7 +86,7 @@ int get_page(vaddr_t, pid_t, int);
 *
 * @return NULL in caso di errore, altrimenti l'indirizzo fisico
 */
-paddr_t pt_load_page(vaddr_t, pid_t);
+paddr_t pt_load_page(vaddr_t, pid_t); //TODO: CLAPE: capire se serve
 
 /**
 * Questa funzione rimuove tutte le pagine associate ad un processo quando termina
@@ -94,5 +96,14 @@ paddr_t pt_load_page(vaddr_t, pid_t);
 * @return 0 in caso di successo, -1 in caso di errore
 */
 int free_pages(pid_t);
+
+
+int update_tlb_bit(vaddr_t, pid_t);
+
+paddr_t get_contiguous_pages(int, int);
+
+void free_contiguous_pages(vaddr_t);
+
+void print_nkmalloc(void);
 
 #endif /* _PT_H_ */

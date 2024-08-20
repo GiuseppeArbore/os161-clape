@@ -12,6 +12,7 @@
 #define SetIOBitOne(x) (x | 0x8)
 
 #define SetReferenceBitZero(x) (x & 0x5)
+#define SetTlbBitZero(x) (x & 0x3)
 #define SetIOBitZero(x) (x & 0x7)
 
 #include "pt.h"
@@ -217,8 +218,7 @@ paddr_t pt_get_paddr(vaddr_t vaddr, pid_t pid, int s){
 
 
 //TODO: CLAPE rivedere perchè sono stanco
-paddr_t get_page(vaddr_t v, int spl)
-{
+paddr_t get_page(vaddr_t v, int spl){
 
     pid_t pid = proc_getpid(curproc); // pid corrente TODO: importare
     int res;
@@ -280,6 +280,200 @@ void free_pages(pid_t pid){
             page_table->entries[i].page = 0;
         }
     }
+}
+
+
+int update_tlb_bit(vaddr_t v, pid_t p){
+    int i;
+
+    for(i=0; i<page_table->n_entry; i++){
+        if(page_table->entries[i].pid == p && page_table->entries[i].page == v && GetValidityBit(page_table->entries[i].ctrl)){
+
+
+            KASSERT(page_table\entries[i].page != KMALLOC_PAGE); 
+            KASSERT(!GetTlbBit(page_table->entries[i].ctrl)); //TODO: CLAPE
+
+            page_table->entries[i].ctrl = SetTlbBitZero(page_table->entries[i].ctrl);
+            page_table->entries[i].ctrl = SetReferenceBitOne(page_table->entries[i].ctrl);
+            return 1;
+        }
+    }
+    return -1;
+}
+
+paddr_t get_contiguous_pages(int n_pages, int spl){
+    if (n_pages==1)
+    {
+        paddr_t phisical;
+        int pos = findspace(KMALLOC_PAGE, curproc->p_pid); //TODO: CLAPE: non mi trova il pid
+        if (pos == -1)
+        {
+            pos = find_victim(KMALLOC_PAGE, curproc->p_pid, spl);
+            page_table->entries[pos].ctrl = SetIOBitZero(page_table->entries[pos].ctrl);
+            lock_acquire(page_table->entries[pos].entry_lock);
+            cv_broadcast(page_table->entries[pos].entry_cv, page_table->entries[pos].entry_lock);
+            lock_release(page_table->entries[pos].entry_lock);
+            lock_acquire(page_table->pt_lock);
+            cv_broadcast(page_table->pt_cv, page_table->pt_lock);
+            lock_release(page_table->pt_lock);
+            KASSERT(pos<page_table->n_entry);
+            phisical = page_table->first_free_paddr + pos*PAGE_SIZE;
+        }
+        else{
+            KASSERT(pos<page_table->first_free_paddr);
+            phisical = page_table->first_free_paddr + pos*PAGE_SIZE;
+            page_table->entries[pos].ctrl= SetValidityBitOne(page_table->entries[pos].ctrl);
+            page_table->entries[pos].page = KMALLOC_PAGE;
+            page_table->entries[pos].pid = curproc->p_pid;
+        }
+
+        page_table->contiguous[pos]=1;
+
+        return phisical;
+    }
+
+    int i, j, first_pos=-1, valid, prec=0, old_val, first_it=0;
+    vaddr_t old_vaddr;
+    pid_t old_pid;
+
+    if (n_pages>page_table->n_entry){
+        panic("Non ci sono abbastanza pagine nella page table");
+    }
+
+    for ( i = 0; i < page_table->n_entry; i++)
+    {
+        if (i!=0)
+        {
+            //TODO CLAPE: prendere entry con funzione apposita 
+        }
+        if (!GetValidityBit(page_table->entries[i].ctrl) && 
+            !GetTlbBit(page_table->entries[i].ctrl) &&
+            !GetIOBit(page_table->entries[i].ctrl) &&
+            !GetSwapBit(page_table->entries[i].ctrl) &&
+            page_table->entries[i].page!=KMALLOC_PAGE && (i==0 || prec)
+        ){ //TODO: CLAPE: capire se ok o se ho fatto qualche casino
+            first_pos=i;
+        }
+
+        if (first_pos>=0 && 
+            ! GetValidityBit(page_table->entries[i].ctrl) &&
+            GetTlbBit(page_table->entries[i].ctrl) &&
+            ! GetSwapBit(page_table->entries[i].ctrl) &&
+            page_table->entries[i].page!=KMALLOC_PAGE && 
+            ! GetIOBit(page_table->entries[i].ctrl) &&
+            i-first_pos==n_pages-1;
+        )
+        {
+            for (j=first_pos; j<=i; j++){
+                KASSERT(page_table->entries[i].page!=KMALLOC_PAGE);
+                KASSERT(!GetValidityBit(page_table->entries[j].ctrl));
+                KASSERT(!GetTlbBit(page_table->entries[j].ctrl));
+                KASSERT(!GetIOBit(page_table->entries[j].ctrl));
+                KASSERT(!GetSwapBit(page_table->entries[j].ctrl));
+                page_table->entries[i].ctrl = SetValidityBitOne(page_table->entries[j].ctrl);
+                page_table->entries[i].page=KMALLOC_PAGE;
+                page_table->entries[i].pid= curproc->p_pid;
+            }
+            page_table->contiguous[first_pos]=n_pages;
+            return first_pos*PAGE_SIZE + page_table->first_free_paddr;
+            
+        }
+
+        
+        
+    }
+
+            
+    while (1)
+    {
+        
+
+        for (i=lastIndex; i<page_table->n_entry; i++)
+        {
+            if (page_table->entries[i].page!=KMALLOC_PAGE &&
+                ! GetTlbBit(page_table->entries[i].ctrl) &&
+                ! GetIOBit(page_table->entries[i].ctrl) &&
+                ! GetSwapBit(page_table->entries[i].ctrl) 
+            ){
+                if (GetReferenceBit(page_table->entries[i].ctrl) 
+                    && GetValidityBit(page_table->entries[i].ctrl)
+                ){
+                    page_table->entries[i].ctrl = SetReferenceBitZero(page_table->entries[i].ctrl);
+                    continue;
+                }
+
+
+                if ( ( !GetReferenceBit(page_table->entries[i].ctrl) ||
+                        !GetValidityBit(page_table->entries[i].ctrl) )
+                        &&
+                    (i==0 /* || TODO: CLAPE : funzione da fare per verificare se entry valida*/)
+                ){
+                    first_pos=i;
+                }    
+
+                if( first_pos>=0 && (
+                    ! GetReferenceBit(page_table->entries[i].ctrl) || !GetValidityBit(page_table->entries[i].ctrl) 
+                    ) &&
+                    i-first_pos==n_pages-1
+                ) {
+                    for(j=first_pos; j<=i; j++){
+                        KASSERT(page_table->entries[j].page != KMALLOC_PAGE);
+                        KASSERT(!GetValidityBit(page_table->entries[j].ctrl));
+                        KASSERT(!GetTlbBit(page_table->entries[j].ctrl));
+                        KASSERT(!GetIOBit(page_table->entries[j].ctrl));
+                        KASSERT(!GetSwapBit(page_table->entries[j].ctrl));
+                        
+                        old_pid = page_table->entries[j].pid;
+                        old_vaddr = page_table->entries[j].page;
+                        old_val = GetValidityBit(page_table->entries[j].ctrl);
+
+                        page_table->entries[j].pid = curproc->p_pid;
+                        page_table->entries[j].page = KMALLOC_PAGE;
+                        page_table->entries[j].ctrl = SetValidityBitOne(page_table->entries[j].ctrl);
+
+
+                        if (old_val)
+                        {
+                            page_table->entries[j].ctrl = SetIOBitOne(page_table->entries[j].ctrl);
+                            //TODO: CLAPE: funzione per storare lo swap
+                            page_table->entries[j].ctrl = SetIOBitZero(page_table->entries[j].ctrl);
+                            lock_acquire(page_table->entries[j].entry_lock);
+                            cv_broadcast(page_table->entries[j].entry_cv, page_table->entries[j].entry_lock);
+                            lock_release(page_table->entries[j].entry_lock);
+                            lock_acquire(page_table->pt_lock);
+                            cv_broadcast(page_table->pt_cv, page_table->pt_lock);
+                            lock_release(page_table->pt_lock);
+
+                        }
+                        
+                    }
+                    page_table->contiguous[first_pos]=n_pages;
+                    lastIndex = (i+1)%page_table->n_entry;
+                    return first_pos*PAGE_SIZE + page_table->first_free_paddr;
+                }
+                
+                
+            }
+
+        }
+        
+        lastIndex=0;
+
+        if (first_it<2)
+        {
+            first_it++;
+        }else{
+            lock_acquire(page_table->pt_lock);
+            splx(spl);
+            cv_wait(page_table->pt_cv, page_table->pt_lock);
+            spl=splhigh();
+            lock_release(page_table->pt_lock);
+        }
+        first_pos=-1;
+        
+    }
+    
+    //todo: clape: return something here
 }
 
 
