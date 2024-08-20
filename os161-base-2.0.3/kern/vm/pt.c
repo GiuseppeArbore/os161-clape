@@ -301,6 +301,26 @@ int update_tlb_bit(vaddr_t v, pid_t p){
     return -1;
 }
 
+static int valid_entry(uint8_t ctrl, vaddr_t v){
+    if (GetTlbBit(ctrl)
+    {
+        return 1;
+    }
+    if (GetValidityBit(ctrl) && GetReferenceBit(ctrl) )
+    {
+        return 1;
+    }
+    if(v = KMALLOC_PAGE){
+        return 1;
+    }
+    if (GetIOBit(ctrl) || GetSwapBit(ctrl))
+    {
+        return 1;
+    }
+    return 0;
+    
+}
+
 paddr_t get_contiguous_pages(int n_pages, int spl){
     if (n_pages==1)
     {
@@ -475,6 +495,8 @@ paddr_t get_contiguous_pages(int n_pages, int spl){
     
     //todo: clape: return something here
 }
+
+
 
 
 void print_nkmalloc(void){
