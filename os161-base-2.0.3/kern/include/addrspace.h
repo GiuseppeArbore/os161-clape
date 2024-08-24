@@ -38,6 +38,10 @@
 #include <vm.h>
 #include "opt-dumbvm.h"
 #include "elf.h"
+#include "pt.h"
+#include "vm_tlb.h"
+#include "swapfile.h"
+#include "current.h"
 
 struct vnode;
 
@@ -71,6 +75,9 @@ struct addrspace {
         Elf_Phdr ph1;//Program header of the text section
         Elf_Phdr ph2;//Program header of the data section
         struct vnode *v;//vnode of the elf file
+        size_t initial_offset1;
+        size_t initial_offset2;
+        int valid;
         
 #endif
 };
@@ -117,7 +124,8 @@ struct addrspace {
  */
 
 struct addrspace *as_create(void);
-int               as_copy(struct addrspace *src, struct addrspace **ret);
+//if opt dumbvm è diverso as_copy
+int               as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid, int spl);
 void              as_activate(void);
 void              as_deactivate(void);
 void              as_destroy(struct addrspace *);
@@ -140,6 +148,18 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
  */
 
 int load_elf(struct vnode *v, vaddr_t *entrypoint);
+
+
+
+int as_is_ok(void);
+void vm_bootstrap(void);
+void vm_shutdown(void);
+void vm_tlbshootdown(const struct tlbshootdown *);
+vaddr_t alloc_kpages(unsigned npages);
+void free_kpages(vaddr_t addr);
+void addraspace_init(void);
+
+
 
 
 #endif /* _ADDRSPACE_H_ */
