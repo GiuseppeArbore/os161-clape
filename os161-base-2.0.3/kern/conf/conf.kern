@@ -424,7 +424,7 @@ defoption netfs
 # Note that "emufs" is completely contained in the "emu" device.
 #
 
-defoption test
+
 
 ########################################
 #                                      #
@@ -458,3 +458,5 @@ optfile syscalls    syscall/proc_syscalls.c
 
 #aggiunta da Peppe
 defoption synch 
+defoption test
+defoption sw_list

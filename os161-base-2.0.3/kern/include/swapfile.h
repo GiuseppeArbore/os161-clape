@@ -16,15 +16,30 @@
 * (indirizzo virtuale - pid) -> posizione swapfile
 */
 struct swapfile{
-    struct swap_cell *elements;
-    struct vnode *v;
-    size_t size;
-
+    #if OPT_SW_LIST
+     struct swap_cell **text;//Array di liste di pagine di testo nel file di swap (una per ogni pid)
+     struct swap_cell **data;//Array di liste di pagine di dati nel file di swap (una per ogni pid)
+     struct swap_cell **stack;//Array di liste di pagine di stack nel file di swap (una per ogni pid)
+     struct swap_cell *free;//Lista di pagine libere nel file di swap
+     void *kbuf;//Buffer utilizzato durante la copia delle pagine di swap
+     #else
+     struct swap_cell *elements;//Array di liste nel file di swap (una per ogni pid)
+     #endif
+     struct vnode *v;//vnode del file di swap
+     int size;//Numero di pagine memorizzate nel file di swap
 };
 
 struct swap_cell{
-    pid_t pid;
-    vaddr_t vaddr;
+    vaddr_t vaddr;//Indirizzo virtuale corrispondente alla pagina memorizzata
+    int store;//Flag che indica se stiamo eseguendo un'operazione di salvataggio su una pagina specifica o meno
+    #if OPT_SW_LIST
+    struct swap_cell *next;
+    paddr_t offset;//Offset dell'elemento di swap all'interno del file di swap
+    struct cv *cell_cv;//Utilizzato per attendere la fine dell'operazione di salvataggio
+    struct lock *cell_lock;//Necessario per eseguire cv_wait
+    #else
+    pid_t pid; //Pid del processo a cui appartiene la pagina. Se pid=-1 la pagina è libera
+    #endif
 };
 
 /**
@@ -62,7 +77,15 @@ int swap_init(void);
 */
 void remove_process_from_swap(pid_t);
 
+/**
+ * Quando viene eseguito un fork, copiamo tutte le pagine del vecchio processo anche per il nuovo processo.
+ * 
+ * @param pid_t: pid del vecchio processo.
+ * @param pid_t: pid del nuovo processo.
+*/
+void copy_swap_pages(pid_t, pid_t);
 
+void reorder_swapfile(void);
 
 
 #endif /* _SWAPFILE_H_ */

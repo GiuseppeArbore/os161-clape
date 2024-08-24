@@ -4,7 +4,9 @@
 
 #define MAX_SIZE 9*1024*1024 // 9MB 
 
+#if !OPT_SW_LIST
 static int occ = 0;
+#endif
 
 struct swapfile *swap;
 
@@ -17,6 +19,10 @@ int load_swap(vaddr_t vaddr, pid_t pid, paddr_t paddr){
 
     KASSERT(pid==curproc->p_pid);
 
+    #if OPT_SW_LIST
+
+    #else     
+    
     int i;
     for(i=0;i<swap->size; i++){
         if(swap->elements[i].pid==pid && swap->elements[i].vaddr==vaddr){// Trovo una corrispondenza
