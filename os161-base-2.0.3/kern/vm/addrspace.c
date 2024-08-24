@@ -289,9 +289,61 @@ void vm_shutdown(void){
 }
 
 
+vaddr_t alloc_kpages(unsigned n_pages){
+	int spl = splhigh();
+	paddr_t paddr;
+
+	spinlock_acquire(&stealmem_lock);
+
+	if (!pt_active){
+		paddr = getppages(n_pages);
+	}
+	else {
+		nkmalloc+=n_pages;
+		spinlock_release(&stealmem_lock);
+		paddr = get_contiguous_pages(n_pages, spl);
+		spinlock_acquire(&stealmem_lock);
+	}
+
+	spinlock_release(&stealmem_lock);
+
+	splx(spl);
+
+	return PADDR_TO_KVADDR(paddr);
+}
+
+void free_kpages(vaddr_t addr){
+	int spl = splhigh();
+	
+	//todo: CLAPE: si potrebbe aggiungere un controlla su pt attiva e su indirizzo
+	paddr_t paddr = KVADDR_TO_PADDR(addr);
+
+	spinlock_acquire(&stealmem_lock);
+
+	if (!pt_active){
+		ram_stealmem_free(paddr); //TODO: clape: aggiunto
+	}
+	else {
+		//nkmalloc--;
+		spinlock_release(&stealmem_lock);
+		free_contiguous_pages(paddr, spl);
+		spinlock_acquire(&stealmem_lock);
+	}
+
+	spinlock_release(&stealmem_lock);
+
+	splx(spl);
+}
 
 void address_space_init(void){
 	spinlock_init(&stealmem_lock); //todo: importare stealmem_lock
 	pt_active=0;
 }
-/* todo: getppages , freekpages*/
+
+static paddr_t getppages(unsigned long n_pages){
+	paddr_t addr;
+	addr = ram_stealmem(n_pages);
+
+	return addr;
+}
+
