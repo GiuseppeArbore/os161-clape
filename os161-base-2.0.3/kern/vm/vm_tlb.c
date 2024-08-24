@@ -11,8 +11,45 @@
 * usata per gestire il tlb miss
 */
 int vm_fault(int faulttype, vaddr_t faultaddress){
-    return -1;
+    DEBUG(DB_VM,"\nindirizzo di errore: 0x%x\n",faultaddress);
+    int spl = splhigh(); // in modo che il controllo non passi ad un altro processo in attesa.
+    paddr_t paddr;
+  
+    faultaddress &= PAGE_FRAME; // Estraggo l'indirizzo del frame che ha causato l'errore (non era presente nella TLB)
+
+    /* Aggiorno le statistiche */
+    add_tlb_fault(-1);
+    /* Estraggo l'indirizzo virtuale della pagina corrispondente */
+    switch (faulttype)
+    {
+    case VM_FAULT_READ:
+        
+        break;
+    case VM_FAULT_WRITE:
+      
+        break;
+        /* Il caso di sola lettura deve essere considerato speciale: il segmento di testo non può essere scritto dal processo.
+        Pertanto, se il processo cerca di modificare un segmento RO, il processo deve essere terminato tramite l'apposita chiamata di sistema (non c'è bisogno di panico) */
+    case VM_FAULT_READONLY:
+        kprintf("Hai cercato di scrivere su un segmento di sola lettura... Il processo sta terminando...");
+        sys__exit(0);
+        break;
+    
+    default:
+        break;
+    }
+
+    /* Se sono qui, è sia un VM_FAULT_READ che un VM_FAULT_WRITE */
+    /* Lo spazio degli indirizzi è stato configurato correttamente? */
+    KASSERT(as_is_ok() == 1);
+   /* Se lo spazio degli indirizzi è stato configurato correttamente, chiedo alla tabella delle pagine l'indirizzo virtuale del frame che non è presente nella TLB */
+    paddr = get_page(faultaddress);
+    /* Ora che ho l'indirizzo, posso inserirlo nella TLB */
+    tlb_insert(faultaddress, paddr);
+    splx(spl);
+    return 0;
 }
+
 
 int tlb_victim(void){
     // RR algoritmo
@@ -22,6 +59,7 @@ int tlb_victim(void){
     next_victim = (next_victim + 1) % NUM_TLB;
     return victim;
 }
+
 
 int segment_is_readonly(vaddr_t vaddr){
     struct addrspace *as;
@@ -74,8 +112,7 @@ int tlb_insert(vaddr_t faultvaddr, paddr_t faultpaddr){
     }
     
     tlb_read(&prevHi, &prevLo, entry);
-    //TODO: notificare alla pt che quella entry non c'è piu nella tlb da capire update_tlb_bit(prevHi, curproc->p_pid);
-    
+    update_tlb_bit(prevHi, curproc->p_pid); //notifico alla pt
     tlb_write(hi, lo, entry);
     /*update tlb faults replace*/
     add_tlb_fault(FREE_FAULT); 
@@ -104,3 +141,28 @@ int tlb_invalidate_entry(paddr_t paddr){
     return 0;
 }
 
+/**
+ * Questa funzione deve invalidare la TLB quando si passa da un processo all'altro. Infatti,
+ * la TLB è comune a tutti i processi e non ha un campo "pid".
+ */
+void tlb_invalidate_all(void){
+    uint32_t hi, lo;
+    pid_t pid = curproc->p_pid; // Estraggo il pid del processo attualmente in esecuzione
+    if(previous_pid != pid) // il processo (non il thread) è cambiato. Questo è necessario perché as_activate viene chiamato anche quando il thread cambia.
+    {
+    DEBUG(DB_VM,"NUOVO PROCESSO IN ESECUZIONE: %d AL POSTO DI %d\n",pid,previous_pid);
+
+    /* Aggiorno le statistiche corrette */
+    add_tlb_invalidation();
+
+    /* Itero su tutte le voci */
+    for(int i = 0; i<NUM_TLB; i++){
+            if(tlb_entry_is_valid(i)){ // Se la voce è valida
+                tlb_read(&hi,&lo,i); // recupero il contenuto
+                update_tlb_bit(hi,previous_pid); // Informo tlb che la voce identificata dalla coppia (vaddr, pid) non sarà più "cached"
+            }
+            tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i); // Sovrascrivo la voce
+            }
+    previous_pid = pid; // Aggiorno la variabile globale previous_pid in modo che la prossima volta che la funzione viene chiamata posso determinare se il processo è cambiato.
+    }
+}
