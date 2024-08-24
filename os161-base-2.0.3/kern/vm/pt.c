@@ -302,7 +302,7 @@ int update_tlb_bit(vaddr_t v, pid_t p){
 }
 
 static int valid_entry(uint8_t ctrl, vaddr_t v){
-    if (GetTlbBit(ctrl)
+    if (GetTlbBit(ctrl))
     {
         return 1;
     }
@@ -364,7 +364,7 @@ paddr_t get_contiguous_pages(int n_pages, int spl){
     {
         if (i!=0)
         {
-            //TODO CLAPE: prendere entry con funzione apposita 
+            prec= valid_entry(page_table->entries[i-1].ctrl, page_table->entries[i-1].page);
         }
         if (!GetValidityBit(page_table->entries[i].ctrl) && 
             !GetTlbBit(page_table->entries[i].ctrl) &&
