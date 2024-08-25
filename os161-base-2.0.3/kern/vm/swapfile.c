@@ -21,6 +21,97 @@ int load_swap(vaddr_t vaddr, pid_t pid, paddr_t paddr){
 
     #if OPT_SW_LIST
 
+        //list: è un puntatore alla swap_cell corrente che stiamo esaminando nella lista.
+        //prev: è un puntatore alla swap_cell precedente rispetto a quella attualmente esaminata (list).
+
+        struct addrspace *as=proc_getas();
+        struct swap_cell *list=NULL, *prev=NULL;
+        int seg=-1; //Utilizzato sia per il debug che per la rimozione dalla testa
+
+        //Primo passo: utilizza gli indirizzi virtuali di base (as_vbase1, as_vbase2, USERSTACK) e la dimensione in pagine (as_npages1, as_npages2) 
+        //per determinare in quale segmento si trova l'indirizzo virtuale (vaddr). Capisce a quale lista di swap_cell si riferisce l'indirizzo virtuale.
+
+        if(vaddr>=as->as_vbase1 && vaddr <= as->as_vbase1 + as->as_npages1 * PAGE_SIZE ){
+            list = swap->text[pid];
+            seg=0;
+        }
+
+        if(vaddr>=as->as_vbase2 && vaddr <= as->as_vbase2 + as->as_npages2 * PAGE_SIZE ){
+            list = swap->data[pid];
+            seg=1;
+        }
+
+        if(vaddr <= USERSTACK && vaddr>as->as_vbase2 + as->as_npages2 * PAGE_SIZE){
+            list = swap->stack[pid];
+            seg=2;
+        }
+
+        if(seg==-1){
+            panic("Indirizzo virtuale errato per il caricamento: 0x%x, processo=%d\n",vaddr,curproc->p_pid);
+        }
+
+        //Secondo passo: cercare l'entry nella lista
+        
+        while(list!=NULL){
+
+            if(list->vaddr==vaddr){ //Entry trovata
+                /**
+                 * Si noti che, a causa del parallelismo, è necessario imporre un ordine specifico nelle operazioni.
+                 * Prima di tutto, dobbiamo rimuovere l'entry dalla lista del processo (altrimenti potremmo pensare che questa vecchia entry sia ancora valida).
+                 * Quindi, possiamo eseguire l'operazione di I/O. Tuttavia, l'entry non può essere utilizzata da nessun altro (stiamo ancora lavorando su di essa), quindi non possiamo inserirla nella lista libera.
+                 * Infine, dopo l'operazione di I/O possiamo inserire l'entry nella lista libera.
+                */
+
+                if(prev!=NULL){ //La lista non è la prima entry quindi rimuoviamo list saltandolo
+                    KASSERT(prev->next==list);
+                    DEBUG(DB_VM,"Abbiamo rimosso 0x%x dal processo %d, quindi ora 0x%x punta a 0x%x\n",vaddr,pid,prev!=NULL?prev->vaddr:(unsigned int)NULL,prev->next->vaddr);
+                    prev->next=list->next; //Rimuoviamo list dalla lista del processo
+                }
+                else{ //Rimuoviamo dalla testa
+                    if(seg==0){
+                        swap->text[pid]=list->next;
+                    }
+                    if(seg==1){
+                        swap->data[pid]=list->next;
+                    }
+                    if(seg==2){
+                        swap->stack[pid]=list->next;
+                    }
+                }
+
+                lock_acquire(list->cell_lock);
+                while(list->store){ //L'entry è attualmente in fase di memorizzazione, quindi attendiamo fino a quando la memorizzazione non è stata completata
+                    cv_wait(list->cell_cv,list->cell_lock); //Attendiamo sulla cv dell'entry
+                }
+                lock_release(list->cell_lock);
+                
+                DEBUG(DB_VM,"CARICAMENTO SWAP in 0x%x (virtuale: 0x%x) per il processo %d\n",list->offset, vaddr, pid);
+
+                add_page_fault(DISK_FAULT)//Aggiorno le statistiche
+
+                uio_kinit(&iov,&ku,(void*)PADDR_TO_KVADDR(paddr),PAGE_SIZE,list->offset,UIO_READ);//Di nuovo usiamo paddr come se fosse un indirizzo fisico del kernel per evitare una ricorsione di fault
+
+                result = VOP_READ(swap->v,&ku);//Eseguiamo la lettura
+                if(result){
+                    panic("VOP_READ nel file di swap non riuscita, con risultato=%d",result);
+                }
+                DEBUG(DB_VM,"CARICAMENTO SWAP terminato in 0x%x (virtuale: 0x%x) per il processo %d\n",list->offset, list->vaddr, pid);
+
+                list->next=swap->free; //Inseriamo l'entry nella testa della lista libera
+                swap->free=list;
+
+                add_page_fault(SWAPFILE_FAULT);
+
+                list->vaddr=0; //Reimpostiamo l'indirizzo virtuale
+
+                return 1;//Abbiamo trovato l'entry nel file di swap, quindi restituiamo 1
+            }
+            prev=list; //Aggiorniamo prev e list
+            list=list->next;
+            KASSERT(prev->next==list);
+        }
+
+
     #else     
     
     int i;
