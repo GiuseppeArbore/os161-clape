@@ -157,6 +157,87 @@ int store_swap(vaddr_t vaddr, pid_t pid, paddr_t paddr){
     struct iovec iov;
     struct uio ku;
 
+    #if OPT_SW_LIST
+
+    struct addrspace *as=proc_getas();
+    struct swap_cell *free_frame;
+    int flag=0; //Utilizzato per capire se abbiamo provato a memorizzare un indirizzo non valido
+
+    /**
+     * Ancora una volta, a causa del parallelismo, dobbiamo prestare attenzione all'ordine delle operazioni.
+     * All'inizio, prendiamo un frame libero dalla lista dei liberi. Tuttavia, non possiamo inserirlo nella lista dei processi dopo l'I/O.
+     * Infatti, se, mentre l'operazione di memorizzazione è in corso, il processo cerca questa entry nello swap, non la troverà.
+     * A causa di ciò, la caricherà dall'ELF, ma ovviamente questo è sbagliato e porterà a problemi.
+     * Tuttavia, durante l'operazione di memorizzazione non possiamo accedere alla pagina, perché non conterrà dati validi. Per risolvere questo problema
+     * introduciamo il campo store, che mostrerà se c'è un'operazione di memorizzazione in corso per quel frame.
+    */
+
+    free_frame=swap->free; //Prendiamo un frame libero dalla lista dei liberi
+
+    if(free_frame==NULL){
+        panic("Il file di swap è pieno!"); //Se non abbiamo trovato nessuna entry libera, il file di swap è pieno e facciamo panic
+    }
+
+    KASSERT(free_frame->store==0);
+
+    swap->free = free_frame->next; //Aggiorniamo la lista dei liberi
+
+    //Identifichiamo il segmento dell'indirizzo virtuale e facciamo un inserimento in testa
+
+    if(vaddr>=as->as_vbase1 && vaddr <= as->as_vbase1 + as->as_npages1 * PAGE_SIZE ){
+        free_frame->next=swap->text[pid];
+        swap->text[pid]=free_frame;
+        flag=1;
+    }
+
+    if(vaddr>=as->as_vbase2 && vaddr <= as->as_vbase2 + as->as_npages2 * PAGE_SIZE ){
+        free_frame->next=swap->data[pid];
+        swap->data[pid]=free_frame;
+        flag=1;
+    }
+
+    if(vaddr <= USERSTACK && vaddr>as->as_vbase2 + as->as_npages2 * PAGE_SIZE){
+        free_frame->next=swap->stack[pid];
+        swap->stack[pid]=free_frame;
+        flag=1;
+    }
+
+
+    if(flag==0){
+        panic("Indirizzo virtuale errato per la memorizzazione: 0x%x\n",vaddr);
+    }
+
+    free_frame->vaddr=vaddr; //Dobbiamo impostare l'indirizzo corretto qui e non dopo la memorizzazione
+
+
+
+    DEBUG(DB_VM,"MEMORIZZAZIONE SWAP in 0x%x (virtuale: 0x%x) per il processo %d\n",free_frame->offset, free_frame->vaddr, pid);
+
+    free_frame->store=1; //Impostiamo il flag di memorizzazione a 1
+
+    uio_kinit(&iov,&ku,(void*)PADDR_TO_KVADDR(paddr),PAGE_SIZE,free_frame->offset,UIO_WRITE);
+
+    result = VOP_WRITE(swap->v,&ku);//Scriviamo sul file di swap
+    if(result){
+        panic("VOP_WRITE nel file di swap non riuscita, con risultato=%d",result);
+    }
+
+    free_frame->store=0; //Cancelliamo il flag di memorizzazione
+
+    lock_acquire(free_frame->cell_lock);
+    cv_broadcast(free_frame->cell_cv, free_frame->cell_lock); //Svegliamo i processi che erano in attesa che la memorizzazione fosse completata
+    lock_release(free_frame->cell_lock);
+
+    DEBUG(DB_VM,"MEMORIZZAZIONE SWAP TERMINATA in 0x%x (virtuale: 0x%x) per il processo %d\n",free_frame->offset, free_frame->vaddr, pid);
+
+    DEBUG(DB_VM,"Abbiamo aggiunto 0x%x al processo %d, che punta a 0x%x\n",vaddr,pid,free_frame->next?free_frame->next->vaddr:0x0);
+
+    add_swapfile_write();//Aggiorniamo le statistiche
+
+    return 1;
+
+    #else
+
     int i;
     for(i=0;i<swap->size; i++){
         if(swap->elements[i].pid==-1){//ricerca per una entry libera
