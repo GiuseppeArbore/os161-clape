@@ -497,6 +497,78 @@ paddr_t get_contiguous_pages(int n_pages, int spl){
 }
 
 
+void free_contiguous_pages(vaddr_t vaddr){
+    int i, index, niter;
+    paddr_t p = KVADDR_TO_PADDR(vaddr);
+    index = (p - page_table->first_free_paddr) / PAGE_SIZE;
+    niter = page_table->contiguous[index];
+
+
+
+    nkmalloc -= niter;
+    KASSERT(niter != -1);
+
+    for (i = index; i < index + niter; i++)
+    {
+        KASSERT(page_table->entries[i].page == KMALLOC_PAGE);
+        page_table->entries[i].ctrl = SetValidityBitZero(page_table->entries[i].ctrl);
+        page_table->entries[i].page = 0;
+    }
+
+    page_table->contiguous[index] = -1;
+
+    print_nkmalloc();
+}
+
+void copy_pt_entries(pid_t old, pid_t new){
+    int pos;
+    for (int i = 0; i < page_table->n_entry; i++)
+    {
+        if (page_table->entries[i].pid == old && page_table->entries[i].page != KMALLOC_PAGE && GetValidityBit(page_table->entries[i].ctrl))
+        {
+            KASSERT(!GetIOBit(page_table->entries[i].ctrl));
+            KASSERT(GetSwapBit(page_table->entries[i].ctrl));
+
+            page_table->entries[i].ctrl = SetIOBitOne(page_table->entries[i].ctrl);
+
+
+            store_swap(page_table->entries[i].page, new , page_table->first_free_paddr + i*PAGE_SIZE);
+
+            page_table->entries[i].ctrl = SetIOBitZero(page_table->entries[i].ctrl);
+
+        }
+    }
+}
+
+void end_copy_pt(pid_t pid){
+    for (int i = 0; i < page_table->n_entry; i++)
+    {
+        if (page_table->entries[i].pid == pid && page_table->entries[i].page != KMALLOC_PAGE && GetValidityBit(page_table->entries[i].ctrl))
+        {
+            KASSERT(GetSwapBit(page_table->entries[i].ctrl));
+            page_table->entries[i].ctrl = SetSwapBitZero(page_table->entries[i].ctrl);
+            lock_acquire(page_table->entries[i].entry_lock);
+            cv_broadcast(page_table->entries[i].entry_cv, page_table->entries[i].entry_lock);
+            lock_release(page_table->entries[i].entry_lock);
+        }
+    }
+
+    lock_acquire(page_table->pt_lock);
+    cv_broadcast(page_table->pt_cv, page_table->pt_lock);
+    lock_release(page_table->pt_lock);
+}
+
+void prepare_copy_pt(pid_t pid){
+    for (int i = 0; i < page_table->n_entry; i++)
+    {
+        if (page_table->entries[i].pid == pid && page_table->entries[i].page != KMALLOC_PAGE && GetValidityBit(page_table->entries[i].ctrl))
+        {
+            KASSERT(!GetIOBit(page_table->entries[i].ctrl));
+            page_table->entries[i].ctrl = SetIOBitOne(page_table->entries[i].ctrl);
+        }
+    }
+}
+
 
 
 void print_nkmalloc(void){
