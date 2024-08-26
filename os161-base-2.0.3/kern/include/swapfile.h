@@ -21,6 +21,7 @@ struct swapfile{
      struct swap_cell **data;//Array di liste di pagine di dati nel file di swap (una per ogni pid)
      struct swap_cell **stack;//Array di liste di pagine di stack nel file di swap (una per ogni pid)
      struct swap_cell *free;//Lista di pagine libere nel file di swap
+     //Ogni elemento di questi array è un puntatore alla testa di una lista concatenata di swap_cell per un particolare tipo di segmento (testo, dati, stack) per un processo specifico (pid).
      void *kbuf;//Buffer utilizzato durante la copia delle pagine di swap
      #else
      struct swap_cell *elements;//Array di liste nel file di swap (una per ogni pid)
