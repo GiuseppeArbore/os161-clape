@@ -45,6 +45,7 @@
 #include <test.h>
 #include "opt-sfs.h"
 #include "opt-net.h"
+#include "pt.h"
 
 /*
  * In-kernel menu and command dispatcher.

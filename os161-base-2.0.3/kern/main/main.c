@@ -152,6 +152,9 @@ shutdown(void)
 {
 	kprintf("Shutting down.\n");
 
+	
+
+
 	vfs_clearbootfs();
 	vfs_clearcurdir();
 	vfs_unmountall();
