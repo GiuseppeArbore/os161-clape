@@ -35,6 +35,8 @@
 #include <current.h>
 #include <syscall.h>
 
+//TODO: CLAPE: aggiunge l'include della funzione opt-fork
+
 
 /*
  * System call dispatcher.
@@ -178,5 +180,17 @@ syscall(struct trapframe *tf)
 void
 enter_forked_process(struct trapframe *tf)
 {
-	(void)tf;
+	#if OPT_FORK
+		struct trapframe tf_local = *tf;
+		tf_local.tf_v0 = 0;
+		tf_local.tf_a3 = 0;
+		tf_local.tf_epc += 4;
+
+		as_activate();
+
+		mips_usermode(&tf_local);
+
+	#else
+		(void)tf;
+	#endif
 }

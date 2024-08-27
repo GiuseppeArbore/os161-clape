@@ -139,6 +139,7 @@ getfreeppages(unsigned long npages) {
   return addr;
 }
 
+//TODO: CLAPE: capire se mettere come prima dei lab
 /*
 static paddr_t
 getppages(unsigned long npages)
