@@ -147,6 +147,7 @@ int load_swap(vaddr_t vaddr, pid_t pid, paddr_t paddr){
             return 1;//troviamo la entry nel swapfile, quindi ritorniamo 1
         }
     }
+    #endif
 
     return 0;//Non trovi la entry nel swapfile, quindi ritorniamo 0
 }
@@ -266,12 +267,17 @@ int store_swap(vaddr_t vaddr, pid_t pid, paddr_t paddr){
 
     panic("The swapfile is full!");
 
+    #endif
+
 }
 
 int swap_init(void){
     int result;
     int i;
     char fname[9];
+    #if OPT_SW_LIST
+    struct swap_cell *tmp;
+    #endif
 
     strcpy(fname,"lhd0raw:");//Questo nome rappresenta un dispositivo raw di un disco (ad esempio, un disco fisico virtuale) che verrà utilizzato come file di swap.
 
@@ -296,22 +302,117 @@ int swap_init(void){
 
     swap->size = MAX_SIZE/PAGE_SIZE;//Numero di pagine nel nostro swapfile
 
+    #if OPT_SW_LIST
+
+    swap->kbuf = kmalloc(PAGE_SIZE); //Invece di allocare e liberare ogni volta kbuf per eseguire la copia di swap, lo allociamo una volta sola
+    if(!swap->kbuf){
+        panic("Errore durante l'allocazione di kbuf");
+    }
+
+    swap->text = kmalloc(MAX_PROC*sizeof(struct swap_cell *)); //Una voce per ogni processo, in modo che ogni processo possa avere la sua lista
+    if(!swap->text){
+        panic("Errore durante l'allocazione degli elementi di testo");
+    }
+
+    swap->data = kmalloc(MAX_PROC*sizeof(struct swap_cell *));
+    if(!swap->data){
+        panic("Error during data elements allocation");
+    }
+
+    swap->stack = kmalloc(MAX_PROC*sizeof(struct swap_cell *));
+    if(!swap->stack){
+        panic("Error during stack elements allocation");
+    }
+
+    #else
+
     swap->elements = kmalloc(swap->size*sizeof(struct swap_cell));
 
     if(!swap->elements){
         panic("Error during swap elements allocation");
     }
+    #endif
 
+    #if OPT_SW_LIST
+        for(i=0;i<MAX_PROC;i++){ // Inizializza tutte le liste per ogni processo
+            swap->text[i]=NULL;
+            swap->data[i]=NULL;
+            swap->stack[i]=NULL;
+        }
+    #endif
 
-    for(i=(int)(swap->size-1); i>=0; i--){//Create all the elements in the free list. We iterate in reverse order because we perform head insertion, and in this way the first free elements will have small offsets.
-        swap->elements[i].pid=-1;//We mark all the pages of the swapfile as free
-
+    for(i=(int)(swap->size-1); i>=0; i--){//Creiamo tutti gli elementi nella lista dei liberi. Iteriamo in ordine inverso perché eseguiamo l'inserimento in testa, e in questo modo i primi elementi liberi avranno offset più piccoli.
+        #if OPT_SW_LIST
+        tmp=kmalloc(sizeof(struct swap_cell));
+        if(!tmp){
+            panic("Errore durante l'allocazione degli elementi di swap");
+        }
+        tmp->offset=i*PAGE_SIZE; //Offset all'interno del file di swap
+        tmp->store=0;
+        tmp->cell_cv = cv_create("cell_cv");
+        tmp->cell_lock = lock_create("cell_lock");
+        tmp->next=swap->free; //Inserimento nella lista dei liberi
+        swap->free=tmp;
+        #else
+        swap->elements[i].pid=-1;//Segnaliamo tutte le pagine del file di swap come libere
+        #endif
     }
 
     return 0;
 }
 
 void remove_process_from_swap(pid_t pid){
+    #if OPT_SW_LIST
+    struct swap_cell *elem, *next;
+
+    // Iteriamo sulle liste di testo, dati e stack per rimuovere tutti gli elementi appartenenti al processo terminato
+
+    if (swap->text[pid] != NULL) {
+        for (elem = swap->text[pid]; elem != NULL; elem = next) {
+            lock_acquire(elem->cell_lock);
+            while (elem->store) { // Se c'è un'operazione di memorizzazione in corso, aspettiamo che finisca prima di inserire la pagina nella lista libera
+                cv_wait(elem->cell_cv, elem->cell_lock);
+            }
+            lock_release(elem->cell_lock);
+
+            next = elem->next; // Salviamo next per inizializzare correttamente elem nella successiva iterazione
+            elem->next = swap->free;
+            swap->free = elem;
+        }
+        swap->text[pid] = NULL;
+    }
+
+    if (swap->data[pid] != NULL) {
+        for (elem = swap->data[pid]; elem != NULL; elem = next) {
+            lock_acquire(elem->cell_lock);
+            while (elem->store) {
+                cv_wait(elem->cell_cv, elem->cell_lock);
+            }
+            lock_release(elem->cell_lock);
+
+            next = elem->next;
+            elem->next = swap->free;
+            swap->free = elem;
+        }
+        swap->data[pid] = NULL;
+    }
+
+    if (swap->stack[pid] != NULL) {
+        for (elem = swap->stack[pid]; elem != NULL; elem = next) {
+            lock_acquire(elem->cell_lock);
+            while (elem->store) {
+                cv_wait(elem->cell_cv, elem->cell_lock);
+            }
+            lock_release(elem->cell_lock);
+
+            next = elem->next;
+            elem->next = swap->free;
+            swap->free = elem;
+        }
+        swap->stack[pid] = NULL;
+    }
+
+    #else
     int i;
     for(i=0;i<swap->size; i++){
         if(swap->elements[i].pid==pid){
@@ -320,4 +421,5 @@ void remove_process_from_swap(pid_t pid){
             swap->elements[i].pid=-1;
         }
     }
+    #endif
 }

@@ -10,6 +10,12 @@
 #include "lib.h"
 #include "vfs.h"
 #include "vmstats.h"
+#include "opt-sw_list.h"
+#include "proc.h"
+#include "synch.h"
+#include "current.h"
+#include "vm.h"
+#include "spl.h"
 
 /*
 *  Struttura per caricare l'associazione
