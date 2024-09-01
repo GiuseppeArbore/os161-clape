@@ -3,12 +3,15 @@
 
 #include <types.h>
 #include <addrspace.h>
+#include <kern/errno.h>
 #include <synch.h>
-
+#include <spl.h>
+#include <opt-debug.h>
 
 
 
 int pt_active; // flag per sapere se la page table è attiva
+
 int nkmalloc; //TODO: CLAPE
 
 /**
@@ -105,5 +108,13 @@ paddr_t get_contiguous_pages(int, int);
 void free_contiguous_pages(vaddr_t);
 
 void print_nkmalloc(void);
+
+void copy_pt_entries(pid_t, pid_t);
+
+void prepare_copy_pt(pid_t);
+
+void end_copy_pt(pid_t);
+
+void free_forgotten_pages(void);
 
 #endif /* _PT_H_ */
