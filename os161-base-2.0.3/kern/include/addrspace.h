@@ -45,6 +45,10 @@
 
 struct vnode;
 
+#if !OPT_DUMBVM
+struct spinlock stealmem_lock;
+#endif
+
 #define DUMBVM_STACKPAGES    18
 
 
@@ -125,7 +129,12 @@ struct addrspace {
 
 struct addrspace *as_create(void);
 //if opt dumbvm è diverso as_copy
+
+#if OPT_DUMBVM
+int               as_copy(struct addrspace *old, struct addrspace **ret);
+#else
 int               as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid, int spl);
+#endif
 void              as_activate(void);
 void              as_deactivate(void);
 void              as_destroy(struct addrspace *);
@@ -150,16 +159,12 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 int load_elf(struct vnode *v, vaddr_t *entrypoint);
 
 
-
-int as_is_ok(void);
+int as_is_ok(void); //o not ok
 void vm_bootstrap(void);
 void vm_shutdown(void);
 void vm_tlbshootdown(const struct tlbshootdown *);
 vaddr_t alloc_kpages(unsigned n_pages);
 void free_kpages(vaddr_t addr);
-void addraspace_init(void);
-
-
-
+void addrspace_init(void);
 
 #endif /* _ADDRSPACE_H_ */

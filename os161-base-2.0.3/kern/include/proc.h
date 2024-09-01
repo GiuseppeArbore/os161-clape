@@ -40,6 +40,7 @@
 #define MAX_PROC 100
 
 #include <spinlock.h>
+#include <synch.h>
 
 struct addrspace;
 struct thread;
@@ -74,6 +75,11 @@ struct proc {
 	struct vnode *p_cwd;		/* current working directory */
 
 	/* add more material here as needed */
+	pid_t pid;
+	int p_status;
+	struct cv *p_cv;
+	struct lock *p_lock_cv;
+	int ended;
 };
 
 /* This is the process structure for the kernel and for kernel-only threads. */
@@ -99,6 +105,14 @@ struct addrspace *proc_getas(void);
 
 /* Change the address space of the current process, and return the old one. */
 struct addrspace *proc_setas(struct addrspace *);
+
+/* wait process termination*/
+int proc_wait(struct proc *proc);
+
+/* get process by pid */
+struct proc *proc_search_pid(pid_t pid);
+
+pid_t proc_getpid(struct proc *p);
 
 
 #endif /* _PROC_H_ */

@@ -31,6 +31,8 @@ struct stats
     uint32_t page_elf_faults; //numero di page faults per cui è stato necessario caricare una pagine da un file ELF
     uint32_t page_swapfile_faults; //numero di page faults per cui è stato necessario caricare una pagina dallo swapfile
     uint32_t swapfile_writes; //numero di page fault per cui è stato necessario scrivere una pagina sullo swapfile
+    struct spinlock stats_lock;
+    
 } stats;
 
 
