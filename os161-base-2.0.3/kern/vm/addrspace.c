@@ -122,6 +122,7 @@ as_activate(void)
 	struct addrspace *as;
 	int spl;
 	spl = splhigh();
+
 	as = proc_getas();
 
 	if (as == NULL) {
@@ -176,7 +177,7 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	vaddr &= PAGE_FRAME;
 
 	// verifico la lunghezza
-	memsize = (memsize + PAGE_SIZE - 1) & PAGE_FRAME;
+	memsize = (memsize + initial_offset + PAGE_SIZE - 1) & PAGE_FRAME;
 	npages = memsize / PAGE_SIZE;
 
 
@@ -186,12 +187,15 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	(void)executable;
 
 	if (as->as_vbase1 == 0) {
+		DEBUG(DB_VM, "as_define_region: vaddr 0x%x \n", vaddr);
 		as->as_vbase1 = vaddr;
 		as->as_npages1 = npages;
 		as->initial_offset1 = initial_offset;
 		return 0;
 	}
+
 	if (as->as_vbase2 == 0) {
+		DEBUG(DB_VM, "as_define_region: vaddr 0x%x \n", vaddr);
 		as->as_vbase2 = vaddr;
 		as->as_npages2 = npages;
 		as->initial_offset2 = initial_offset;
@@ -253,7 +257,6 @@ int as_is_ok(void){
 		){
 		return 0;
 	}
-	
 	return 1;
 }
 
@@ -265,8 +268,8 @@ void vm_bootstrap(void){
 
 void vm_tlbshootdown(const struct tlbshootdown *ts){
 	(void)ts;
-	//panic("tlbshootdown");
-	tlb_invalidate_all();
+	panic("tlbshootdown");
+	//tlb_invalidate_all();
 }
 
 void vm_shutdown(void){
@@ -279,12 +282,8 @@ void vm_shutdown(void){
 		if (page_table->entries[i].page==1)
 		{
 			kprintf("errore , capire bene cosa stampare\n"); //TODO: CLAPE
-		}
-
-		
+		}		
 	}
-	
-	
 	stats_print();
 }
 
