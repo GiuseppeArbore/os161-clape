@@ -6,11 +6,19 @@
 #include "addrspace.h"
 #include "spl.h"
 #include "pt.h"
+#include "opt-dumbvm.h"
+#include "opt-test.h"
 
 /*
 * usata per gestire il tlb miss
 */
+#if OPT_PROJECT
 int vm_fault(int faulttype, vaddr_t faultaddress){
+
+    #if OPT_DEBUG
+    print_tlb();
+    #endif
+
     DEBUG(DB_VM,"\nindirizzo di errore: 0x%x\n",faultaddress);
     int spl = splhigh(); // in modo che il controllo non passi ad un altro processo in attesa.
     paddr_t paddr;
@@ -49,7 +57,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress){
     splx(spl);
     return 0;
 }
-
+#endif
 
 int tlb_victim(void){
     // RR algoritmo
@@ -63,15 +71,16 @@ int tlb_victim(void){
 
 int segment_is_readonly(vaddr_t vaddr){
     struct addrspace *as;
-    as = proc_getas();
-    int readonly = 0;
-    unit32_t vbfirst_text_vaddr = as->as_vbase1;
-    inti size = as-> as_npages1;
-    unit32_t last_text_vaddr = (size * PAGE_SIZE) + first_text_vaddr;
-    if(vaddr >= vbase && vaddr < last_text_vaddr){
-        readonly = 1;
-    }
-    return readonly;
+    as = proc_getas(); // I get the address space of the process
+    int is_ro = 0;
+    uint32_t first_text_vaddr = as->as_vbase1;
+    int size = as->as_npages1;
+    uint32_t last_text_vaddr = (size*PAGE_SIZE) + first_text_vaddr;
+    /*if the virtual address is in the range of virtual addresses assigned to the text segment, I set is_ro to true*/
+    if((vaddr>=first_text_vaddr)  && (vaddr <= last_text_vaddr))
+        is_ro = 1;
+    return is_ro;
+
 }
 
 
@@ -165,4 +174,16 @@ void tlb_invalidate_all(void){
             }
     previous_pid = pid; // Aggiorno la variabile globale previous_pid in modo che la prossima volta che la funzione viene chiamata posso determinare se il processo è cambiato.
     }
+}
+
+void print_tlb(void){
+    uint32_t hi, lo;
+
+    kprintf("\n\n\tTLB\n\n");
+
+    for(int i = 0; i<NUM_TLB; i++){
+        tlb_read(&hi, &lo, i);
+        kprintf("%d virtual: 0x%x, physical: 0x%x\n", i, hi, lo);
+    }
+
 }

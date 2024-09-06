@@ -52,7 +52,12 @@
 #include "autoconf.h"  // for pseudoconfig
 #include "hello.h"
 #include "opt-hello.h"
+#include "opt-dumbvm.h"
 
+
+#if !OPT_DUMBVM
+#include "addrspace.h"
+#endif
 
 
 /*
@@ -108,6 +113,10 @@ boot(void)
 		GROUP_VERSION, buildconfig, buildversion);
 	kprintf("\n");
 
+	#if !OPT_DUMBVM
+	addrspace_init();
+	#endif
+
 	/* Early initialization. */
 	ram_bootstrap();
 	proc_bootstrap();
@@ -127,6 +136,9 @@ boot(void)
 	kheap_nextgeneration();
 
 	/* Late phase of initialization. */
+	#if OPT_PROJECT
+	create_sem_fork();
+	#endif
 	vm_bootstrap();
 	kprintf_bootstrap();
 	thread_start_cpus();
@@ -152,8 +164,9 @@ shutdown(void)
 {
 	kprintf("Shutting down.\n");
 
-	
-
+	#if !OPT_DUMBVM
+	vm_shutdown();
+	#endif
 
 	vfs_clearbootfs();
 	vfs_clearcurdir();
@@ -206,7 +219,6 @@ sys_reboot(int code)
 	return 0;
 }
 
-
 /*
  * Kernel main. Boot up, then fork the menu thread; wait for a reboot
  * request, and then shut down.
@@ -215,11 +227,6 @@ void
 kmain(char *arguments)
 {
 	boot();
-
-
-#if OPT_HELLO
-	//hello(); //aggiunta
-#endif
 
 	menu(arguments);
 

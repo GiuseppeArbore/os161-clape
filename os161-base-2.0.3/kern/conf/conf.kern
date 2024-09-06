@@ -444,19 +444,25 @@ file		test/fstest.c
 optfile net	test/nettest.c
 file        vm/segment.c
 file        vm/swapfile.c
+file        vm/vmstats.c
+optfile project       vm/coremap.c
+optfile project      vm/pt.c
+optfile project       vm/vm_tlb.c
 
 
 # NEW PDS WORK
 
-defoption hello
-optfile hello main/hello.c
-
+#da capire
 defoption   syscalls
 optfile syscalls    syscall/file_syscalls.c
 optfile syscalls    syscall/proc_syscalls.c
 
 
-#aggiunta da Peppe
-defoption synch 
+#da capire
+defoption synch  
+
+
 defoption test
 defoption sw_list
+defoption project
+defoption debug

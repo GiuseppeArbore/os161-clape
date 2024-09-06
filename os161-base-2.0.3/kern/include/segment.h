@@ -17,6 +17,8 @@
 #include <vnode.h>
 #include <elf.h>
 #include "vmstats.h"
+#include "opt-project.h"
+#include "opt-debug.h"
 
 
 /**

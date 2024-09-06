@@ -30,6 +30,7 @@ Struttura uio (u)
     uio_space: utilizzato in operazioni che coinvolgono lo spazio degli indirizzi utente, ma qui è NULL perché si opera nel kernel.
     */
 
+#if OPT_PROJECT
 static int load_elf_page(struct vnode *v,
          off_t offset, vaddr_t vaddr,
          size_t memsize, size_t filesize)
@@ -79,6 +80,11 @@ int load_page(vaddr_t vaddr, pid_t pid, paddr_t paddr){
     }
 
     as = proc_getas();
+
+
+	#if OPT_DEBUG
+	print_list(pid);
+	#endif
 
 
     DEBUG(DB_VM,"Processo %d cerca di leggere ELF\n",pid);
@@ -213,4 +219,4 @@ int load_page(vaddr_t vaddr, pid_t pid, paddr_t paddr){
     
     
 }
-
+#endif
