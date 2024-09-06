@@ -6,6 +6,7 @@
 #include "proc.h"
 #include "opt-debug.h"
 
+pid_t previous_pid;
 
 /*
 * struttura dati per la gestione della TLB
@@ -14,6 +15,8 @@ struct tlb{
   
 };
 
+
+pid_t old_pid;
 
 /*
 *Questa è una funzione che trova la vittima
@@ -56,5 +59,7 @@ int tlb_entry_is_valid(int index);
  * La TLB è comune per tutti i processi e non ha un campo "pid"
  */
 void tlb_invalidate_all(void);
+
+void print_tlb(void);
 
 #endif /* _VM_TLB_H_ */

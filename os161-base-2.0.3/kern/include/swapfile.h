@@ -10,12 +10,13 @@
 #include "lib.h"
 #include "vfs.h"
 #include "vmstats.h"
-#include "opt-sw_list.h"
-#include "proc.h"
 #include "synch.h"
-#include "current.h"
+#include "proc.h"
+#include "opt-sw_list.h"
 #include "vm.h"
+#include "opt-debug.h"
 #include "spl.h"
+#include "current.h"
 
 /*
 *  Struttura per caricare l'associazione
@@ -93,6 +94,8 @@ void remove_process_from_swap(pid_t);
 void copy_swap_pages(pid_t, pid_t);
 
 void reorder_swapfile(void);
+
+void print_list(pid_t);
 
 
 #endif /* _SWAPFILE_H_ */

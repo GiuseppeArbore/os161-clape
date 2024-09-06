@@ -46,6 +46,7 @@
 #include "opt-sfs.h"
 #include "opt-net.h"
 #include "pt.h"
+#include "opt-debug.h"
 
 /*
  * In-kernel menu and command dispatcher.
@@ -116,7 +117,7 @@ int
 common_prog(int nargs, char **args)
 {
 	struct proc *proc;
-	int result;
+	int result, exit_code;
 
 	/* Create a process for the new program to run in. */
 	proc = proc_create_runprogram(args[0] /* name */);
@@ -132,6 +133,21 @@ common_prog(int nargs, char **args)
 		kprintf("thread_fork failed: %s\n", strerror(result));
 		proc_destroy(proc);
 		return result;
+	}
+	else{
+		pid_t pid;
+		pid = proc_getpid(proc);
+		pid_t returnpid;
+		returnpid = sys_waitpid(pid,(userptr_t)&exit_code,0);
+
+		KASSERT(returnpid==pid);
+
+		#if OPT_DEBUG
+		print_nkmalloc();
+		#endif
+		reorder_swapfile();
+
+		kprintf("The thread exited with code %d\n",exit_code);
 	}
 
 	/*
