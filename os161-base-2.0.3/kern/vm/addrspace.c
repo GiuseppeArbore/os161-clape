@@ -52,10 +52,6 @@ as_create(void)
 		return NULL;
 	}
 
-	/*
-	 * Initialize as needed.
-	 */
-
 	as->as_vbase1 = 0;
 	as->as_npages1 = 0;
 	as->as_vbase2 = 0;
@@ -206,6 +202,9 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	return ENOSYS;
 }
 
+/**
+ * non necessario con la paginazione on demand poichè non carichiamo nulla senza un fault
+ */
 int
 as_prepare_load(struct addrspace *as)
 {
@@ -217,6 +216,9 @@ as_prepare_load(struct addrspace *as)
 	return 0;
 }
 
+/**
+ * non necessario con la paginazione on demand poichè non carichiamo nulla senza un fault
+ */
 int
 as_complete_load(struct addrspace *as)
 {
@@ -231,9 +233,6 @@ as_complete_load(struct addrspace *as)
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-	/*
-	 * Write this.
-	 */
 
 	(void)as;
 
@@ -269,7 +268,6 @@ void vm_bootstrap(void){
 void vm_tlbshootdown(const struct tlbshootdown *ts){
 	(void)ts;
 	panic("tlbshootdown");
-	//tlb_invalidate_all();
 }
 
 void vm_shutdown(void){
@@ -277,11 +275,18 @@ void vm_shutdown(void){
 	{
 		if (page_table->entries[i].ctrl!=0)
 		{
-			kprintf("Page %d is still in the page table\n",i); //TODO: CLAPE: capire bene
+			kprintf("Page %d is still in the page table\n",i); //TODO: CLAPE: capire bene se entry o page
+			/*
+				kprintf("Entry%d has not been freed! ctl=%d, pid=%d\n",i,peps.pt[i].ctl,peps.pt[i].pid);
+
+			*/
 		}
 		if (page_table->entries[i].page==1)
 		{
 			kprintf("errore , capire bene cosa stampare\n"); //TODO: CLAPE
+			/*
+				kprintf("It looks like some errors with free occurred: entry%d, process %d\n",i,peps.pt[i].pid);
+			*/
 		}		
 	}
 	stats_print();
@@ -341,6 +346,7 @@ void address_space_init(void){
 
 static paddr_t getppages(unsigned long n_pages){
 	paddr_t addr;
+
 	addr = ram_stealmem(n_pages);
 
 	return addr;

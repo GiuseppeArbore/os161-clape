@@ -1,7 +1,9 @@
 // tiene traccia dei frame fisici liberi
 #include "coremap.h"
+#include <vm.h>
 #include <types.h>
 #include <lib.h>
+#include <cpu.h>
 #include <vm.h>
 #include <mainbus.h>
 #include <spinlock.h>
