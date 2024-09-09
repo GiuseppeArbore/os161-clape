@@ -155,6 +155,10 @@ proc_create(const char *name)
 	/* VFS fields */
 	proc->p_cwd = NULL;
 
+	proc_init_waitpid(proc,name);
+
+	proc->ended=0;
+
 	return proc;
 }
 
@@ -243,6 +247,8 @@ proc_destroy(struct proc *proc)
 	KASSERT(proc->p_numthreads == 0);
 	spinlock_cleanup(&proc->p_lock);
 
+	proc_end_waitpid(proc);
+
 	kfree(proc->p_name);
 	kfree(proc);
 }
@@ -257,6 +263,10 @@ proc_bootstrap(void)
 	if (kproc == NULL) {
 		panic("proc_create for kproc failed\n");
 	}
+
+	spinlock_init(&processTable.lk);
+	/* kernel process is not registered in the table */
+	processTable.active = 1;
 }
 
 /*
@@ -392,4 +402,27 @@ proc_setas(struct addrspace *newas)
 	proc->p_addrspace = newas;
 	spinlock_release(&proc->p_lock);
 	return oldas;
+}
+
+int 
+proc_wait(struct proc *proc)
+{
+	int return_status;
+	/* NULL and kernel proc forbidden */
+	KASSERT(proc != NULL);
+	KASSERT(proc != kproc);
+
+	/* wait on semaphore or condition variable */ 
+	lock_acquire(proc->lock);
+	while(!proc->ended){ //Used to avoid starvation/deadlocks
+		cv_wait(proc->p_cv, proc->lock);
+	}
+	lock_release(proc->lock);
+	return_status = proc->p_status;
+	proc_destroy(proc);
+	return return_status;
+}
+
+pid_t proc_getpid(struct proc* p){
+	return p->p_pid;
 }
