@@ -486,6 +486,11 @@ void remove_process_from_swap(pid_t pid){
 static int n=0;
 #endif
 
+/* gestire il processo di copia delle pagine di memoria tra due processi durante un fork. 
+In questo contesto, il sistema utilizza un'area di swap per gestire la memoria virtuale e lo scambio di pagine 
+tra la memoria principale e il disco. L'obiettivo della funzione è copiare le pagine del processo padre (old_pid)
+ nelle aree di swap del nuovo processo figlio (new_pid).*/
+
 void copy_swap_pages(pid_t new_pid, pid_t old_pid){
     DEBUG(DB_VM,"Processo %d esegue un kmalloc per forkare %d\n",curproc->p_pid,new_pid);
     struct uio u;
@@ -514,6 +519,7 @@ void copy_swap_pages(pid_t new_pid, pid_t old_pid){
             if(free==NULL){
                 panic("Il file di swap è pieno!");// Non abbiamo abbastanza pagine per eseguire il fork
             }
+
 
             swap->free = free->next;
             free->next = swap->text[new_pid];
@@ -564,6 +570,11 @@ void copy_swap_pages(pid_t new_pid, pid_t old_pid){
             if(free==NULL){
                 panic("Il file di swap è pieno!");// Non abbiamo abbastanza pagine per eseguire il fork
             }
+
+            //Stiamo rimuovendo la pagina A dalla lista delle pagine libere, e facciamo in modo che la nuova testa della lista 
+            //(swap->free) punti alla pagina B, così la lista diventa:
+            //Stiamo collegando la pagina A (puntata da free) alla lista di pagine del segmento "text" del nuovo processo. 
+            //Infine, aggiorniamo la testa della lista swap->data[new_pid] in modo che punti alla pagina appena allocata (free, cioè la pagina A).
 
             swap->free = free->next;
             free->next = swap->data[new_pid];
@@ -649,6 +660,7 @@ void copy_swap_pages(pid_t new_pid, pid_t old_pid){
     #else
     int i,j;
 
+    //doppia ricerca lineare prima della pagina da copiare e poi per trovare una pagina libera
     for(i=0;i<swap->size;i++){
         if(swap->elements[i].pid==old_pid){
             for(j=0;j<swap->size; j++){
