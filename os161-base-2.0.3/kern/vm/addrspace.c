@@ -317,6 +317,7 @@ vaddr_t alloc_kpages(unsigned n_pages){
 }
 
 void free_kpages(vaddr_t addr){
+
 	int spl = splhigh();
 	
 	//todo: CLAPE: si potrebbe aggiungere un controlla su pt attiva e su indirizzo
@@ -324,7 +325,7 @@ void free_kpages(vaddr_t addr){
 
 	spinlock_acquire(&stealmem_lock);
 
-	if (!pt_active){
+	if (!pt_active || addr< PADDR_TO_KVADDR(page_table->firstfreepaddr)){
 		ram_stealmem_free(paddr); //TODO: clape: aggiunto
 	}
 	else {
