@@ -25,7 +25,8 @@
 #include <mainbus.h>
 #include <current.h>
 #include <proc.h>
-
+#include <segments.h>
+#include <cpu.h>
 
 
 #define KMALLOC_PAGE 1
@@ -107,12 +108,23 @@ static int findspace() {
     return -1;
 }
 
+#if OPT_DEBUG
+static int n=0;
+#endif
 
 int find_victim(vaddr_t vaddr, pid_t pid, int s){
-    int i, start_index=lastIndex, first;=0
+    int i, start_index=lastIndex, first=0;
     int old_validity=0;
     pid_t old_pid;
     vaddr_t old_page;
+
+    #if OPT_DEBUG
+    if (n==0)
+    {
+        DEBUG(DB_VM, "Inizio a cercare vittime\n");
+        n=1;
+    }
+    #endif
 
     for (i = lastIndex;; i = (i+1)%page_table->n_entry)
     {
@@ -123,8 +135,7 @@ int find_victim(vaddr_t vaddr, pid_t pid, int s){
                 //faccio ulteriori controlli
                 KASSERT(!GetIOBit(page_table->entries[i].ctrl));
                 KASSERT(!GetSwapBit(page_table->entries[i].ctrl));
-                KASSERT(GetTlbBit(page_table->entries[i].ctrl));
-                KASSERT(page_table->entries[i].page != KMALLOC_PAGE);
+                KASSERT(!GetTlbBit(page_table->entries[i].ctrl));
 
                 old_pid = page_table->entries[i].pid;
                 old_validity = GetValidityBit(page_table->entries[i].ctrl);
@@ -146,8 +157,8 @@ int find_victim(vaddr_t vaddr, pid_t pid, int s){
         }
         
 
-        if((i+1)%page_table->n_entry == start_index){
-            if(first){
+        if((i+1) % page_table->n_entry == start_index){
+            if(first==1){
                 lock_acquire(page_table->pt_lock);
                 splx(s);
                 cv_wait(page_table->pt_cv, page_table->pt_lock);
@@ -179,7 +190,7 @@ paddr_t pt_get_paddr(vaddr_t vaddr, pid_t pid, int s){
         for (int i=0; i<page_table->n_entry; i++){  //scorro la page table
             if (GetValidityBit(page_table->entries[i].ctrl)){
                 //voce valida
-                if (page_table->entries[i].pid==pid && page_table->entries[i].vaddr==vaddr){
+                if (page_table->entries[i].pid==pid && page_table->entries[i].page==vaddr){
                     //voce corrisponde a quella cercata
                     lock_acquire(page_table->entries[i].entry_lock); //acquisisco lock
                     while(GetIOBit(page_table->entries[i].ctrl)){ //se coinvolto in IO continuo a ciclare
@@ -192,24 +203,19 @@ paddr_t pt_get_paddr(vaddr_t vaddr, pid_t pid, int s){
                     lock_release(page_table->entries[i].entry_lock); //rilascio lock
                     if (vaddr!=page_table->entries[i].vaddr || pid!=page_table->entries[i].pid || GetValidityBit(page_table->entries[i].ctrl)==0){
                         //se la voce non corrisponde a quella cercata o non è valida
-                        stopped=1; //ciclo di attesa attivo
                         continue;
                     }
 
                     // verifiche su bit di controllo
                     KASSERT(!GetIOBit(page_table->entries[i].ctrl)); 
                     KASSERT(!GetTlbBit(page_table->entries[i].ctrl));
-                    KASSERT(page_table->entries[i].page=KMALLOC_PAGE);
+                    KASSERT(page_table->entries[i].page!=KMALLOC_PAGE);
 
                     page_table->entries[i].ctrl=SetTlbBitOne(page_table->entries[i].ctrl); //setto bit tlb ad 1
                     return i*PAGE_SIZE + page_table->first_free_paddr; //ritorno l'indirizzo fisico
 
-                    
-                }
-                
+                }                
             }
-            
-
         }
     }
 
@@ -217,10 +223,9 @@ paddr_t pt_get_paddr(vaddr_t vaddr, pid_t pid, int s){
 }
 
 
-//TODO: CLAPE rivedere perchè sono stanco
 paddr_t get_page(vaddr_t v, int spl){
 
-    pid_t pid = proc_getpid(curproc); // pid corrente TODO: importare
+    pid_t pid = proc_getpid(curproc); // pid corrente
     int res;
     paddr_t phisical;
     res = pt_get_paddr(v, pid, spl);
@@ -232,6 +237,7 @@ paddr_t get_page(vaddr_t v, int spl){
         return phisical;
     }
 
+    DEBUG(DB_VM,"PID=%d wants to load 0x%x\n",pid,v);
 
     int pos = findspace(v,pid); 
     if (pos == -1) //non trovato libero, cerco vittima
@@ -241,7 +247,7 @@ paddr_t get_page(vaddr_t v, int spl){
         phisical = page_table->first_free_paddr + pos*PAGE_SIZE;
     }
     else{
-        KASSERT(pos<page_table->first_free_paddr);
+        KASSERT(pos<page_table->n_entry);
         phisical = page_table->first_free_paddr + pos*PAGE_SIZE;
         page_table->entries[pos].ctrl= SetValidityBitOne(page_table->entries[pos].ctrl);
         page_table->entries[pos].ctrl= SetIOBitOne(page_table->entries[pos].ctrl);
@@ -289,6 +295,10 @@ int update_tlb_bit(vaddr_t v, pid_t p){
     for(i=0; i<page_table->n_entry; i++){
         if(page_table->entries[i].pid == p && page_table->entries[i].page == v && GetValidityBit(page_table->entries[i].ctrl)){
 
+            if(!(page_table->entries[i].ctrl & 4)){ //TODO: CLAPE
+                kprintf("Error for process %d, vaddr 0x%x, ctrl=0x%x\n",p,v,page_table->entries[i].ctrl);
+            }
+
 
             KASSERT(page_table\entries[i].page != KMALLOC_PAGE); 
             KASSERT(!GetTlbBit(page_table->entries[i].ctrl)); //TODO: CLAPE
@@ -310,7 +320,7 @@ static int valid_entry(uint8_t ctrl, vaddr_t v){
     {
         return 1;
     }
-    if(v = KMALLOC_PAGE){
+    if(v == KMALLOC_PAGE){
         return 1;
     }
     if (GetIOBit(ctrl) || GetSwapBit(ctrl))
@@ -321,7 +331,15 @@ static int valid_entry(uint8_t ctrl, vaddr_t v){
     
 }
 
+
+#if OPT_DEBUG
+static int nfork=0;
+#endif
+
 paddr_t get_contiguous_pages(int n_pages, int spl){
+
+    DEBUG(DB_VM,"Process %d performs kmalloc for %d pages\n", curproc->p_pid,npages);
+
     if (n_pages==1)
     {
         paddr_t phisical;
@@ -377,13 +395,14 @@ paddr_t get_contiguous_pages(int n_pages, int spl){
 
         if (first_pos>=0 && 
             ! GetValidityBit(page_table->entries[i].ctrl) &&
-            GetTlbBit(page_table->entries[i].ctrl) &&
+            ! GetTlbBit(page_table->entries[i].ctrl) &&
             ! GetSwapBit(page_table->entries[i].ctrl) &&
             page_table->entries[i].page!=KMALLOC_PAGE && 
             ! GetIOBit(page_table->entries[i].ctrl) &&
             i-first_pos==n_pages-1;
         )
         {
+            DEBUG(DB_VM,"Kmalloc for process %d entry%d\n",curproc->p_pid,first);
             for (j=first_pos; j<=i; j++){
                 KASSERT(page_table->entries[i].page!=KMALLOC_PAGE);
                 KASSERT(!GetValidityBit(page_table->entries[j].ctrl));
@@ -399,15 +418,18 @@ paddr_t get_contiguous_pages(int n_pages, int spl){
             
         }
 
-        
-        
     }
 
-            
+
+    #if OPT_DEBUG
+    if(nfork==0){
+        kprintf("FIRST FORK WITH REPLACE\n");
+        nfork++;
+    }
+    #endif  
+    
     while (1)
     {
-        
-
         for (i=lastIndex; i<page_table->n_entry; i++)
         {
             if (page_table->entries[i].page!=KMALLOC_PAGE &&
