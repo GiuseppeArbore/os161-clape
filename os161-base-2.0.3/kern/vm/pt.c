@@ -12,9 +12,9 @@
 #define SetIOBitOne(x) (x | 8)
 #define SetSwapBitOne(x) (x | 16)
 
-#define SetReferenceBitZero(x) (x & 29)
-#define SetTlbBitZero(x) (x & 27)
-#define SetIOBitZero(x) (x & 23)
+#define SetReferenceBitZero(x) (x & ~2)
+#define SetTlbBitZero(x) (x & ~4)
+#define SetIOBitZero(x) (x & ~8)
 
 #include "pt.h"
 #include "vmstats.h"
@@ -31,7 +31,7 @@
 
 
 #define KMALLOC_PAGE 1
-//TODO: clape ->se vogliamo fare FIFO potrebbe essere utile l'ultimo indice
+
 int lastIndex = 0;
 
 /**
@@ -44,27 +44,18 @@ int lastIndex = 0;
 void pt_init(void){
     int num_frames; // entry_in_frames, frames_for_pt;
     spinlock_acquire(&stealmem_lock);
-    num_frames = (mainbus_ramsize() - ram_stealmem) / PAGE_SIZE ; //numero di frame disponibili
+    nkmalloc = 0;
+    num_frames = (mainbus_ramsize() - ram_stealmem(0)) / PAGE_SIZE ; //numero di frame disponibili
 
-
-    /* TODOOO: CLAPE, l'avevp fatta così, ma non so se effettivamente serva
-    entry_in_frames = PAGE_SIZE / sizeof(struct pt_entry) + ((PAGE_SIZE % sizeof(struct pt_entry)) ? 1 : 0); //dim_frame/dim_entry
-    //aggiunta la somma per gestire il caso in cui il frame non sia perfettamente divisibile per la dimensione della entry
-    //in tal caso, sommo 1 per avere spazio a sufficienza
-    frames_for_pt = num_frames / entry_in_frames + ((num_frames % entry_in_frames) ? 1 : 0); 
-    page_table = kmalloc(sizeof(struct pt_info)); //TODO: clape
-    /*
-    * STO ALLOCANDO PT_INFO MA PENSO CHE DOVREI ALLOCARE PT_ENTRY*NUM FRAMES 
-    * E POI VALUTARE PT_INFO --> TO DO DOOOOOOOOOOOOOOOOOOOOO
-    */
     spinlock_release(&stealmem_lock);
-
-
     page_table->entries = kmalloc(num_frames * sizeof(struct pt_entry));
+
+
     spinlock_acquire(&stealmem_lock);
     if(page_table->entries == NULL){
         panic("Errore nell'allocazione della page table");
     }
+
     page_table->pt_lock = lock_create("pt_lock");
     page_table->pt_cv = cv_create("pt_cv");
     if (page_table->pt_lock == NULL || page_table->pt_cv == NULL){
@@ -86,13 +77,15 @@ void pt_init(void){
         page_table->entries[i].entry_cv = cv_create("entry_cv");
         if(page_table->entries[i].entry_lock == NULL || page_table->entries[i].entry_cv == NULL){
             panic("Errore nella creazione del lock o cv della entry");
-        }
+        }//TODO: CLAPE: valutare se togliere o lasciare
         spinlock_acquire(&stealmem_lock);
     }
         
     page_table->first_free_paddr = ram_stealmem(0);
-    //TODO: clape -> non so se serve
-    page_table -> n_entry = num_frames -1;
+
+    DEBUG(DB_VM,"\nRam size :0x%x, first free address: 0x%x, available memory: 0x%x",mainbus_ramsize(),ram_stealmem(0),mainbus_ramsize()-ram_stealmem(0));
+
+    page_table -> n_entry = ((mainbus_ramsize() - ram_stealmem(0)) / PAGE_SIZE) -1;
     pt_active = 1;
     spinlock_release(&stealmem_lock);
 }
@@ -148,7 +141,7 @@ int find_victim(vaddr_t vaddr, pid_t pid, int s){
                 page_table->entries[i].ctrl=SetValidityBitOne(page_table->entries[i].ctrl);
 
                 if (old_validity){
-                    store_swap(old_page, old_pid * PAGE_SIZE + page_table->first_free_paddr ); //   CLAPE: da implementare0
+                    store_swap(old_page, old_pid * PAGE_SIZE + page_table->first_free_paddr ); 
                 }
                 lastIndex = (i+1)%page_table->n_entry;
                 return i;
@@ -444,21 +437,21 @@ paddr_t get_contiguous_pages(int n_pages, int spl){
                     page_table->entries[i].ctrl = SetReferenceBitZero(page_table->entries[i].ctrl);
                     continue;
                 }
-
-
-                if ( ( !GetReferenceBit(page_table->entries[i].ctrl) ||
-                        !GetValidityBit(page_table->entries[i].ctrl) )
+                if ( (  !GetReferenceBit(page_table->entries[i].ctrl) ||
+                        !GetValidityBit(page_table->entries[i].ctrl) 
+                        )
                         &&
-                    (i==0 /* || TODO: CLAPE : funzione da fare per verificare se entry valida*/)
-                ){
-                    first_pos=i;
-                }    
-
+                        (i==0 || valid_entry(page_table->entries[i-1].ctrl, page_table->entries[i-1].page))
+                    ){
+                        first_pos=i;
+                    }    
                 if( first_pos>=0 && (
-                    ! GetReferenceBit(page_table->entries[i].ctrl) || !GetValidityBit(page_table->entries[i].ctrl) 
+                        !GetReferenceBit(page_table->entries[i].ctrl) || 
+                        !GetValidityBit(page_table->entries[i].ctrl) 
                     ) &&
                     i-first_pos==n_pages-1
                 ) {
+                    DEBUG(DB_VM,"Found a space for a kmalloc for process %d entry%d\n",curproc->p_pid,first_pos);
                     for(j=first_pos; j<=i; j++){
                         KASSERT(page_table->entries[j].page != KMALLOC_PAGE);
                         KASSERT(!GetValidityBit(page_table->entries[j].ctrl));
@@ -479,6 +472,8 @@ paddr_t get_contiguous_pages(int n_pages, int spl){
                         {
                             page_table->entries[j].ctrl = SetIOBitOne(page_table->entries[j].ctrl);
                             //TODO: CLAPE: funzione per storare lo swap
+                            store_swap(old_vaddr,old_pid,j * PAGE_SIZE + page_table.first_free_paddr);
+
                             page_table->entries[j].ctrl = SetIOBitZero(page_table->entries[j].ctrl);
                             lock_acquire(page_table->entries[j].entry_lock);
                             cv_broadcast(page_table->entries[j].entry_cv, page_table->entries[j].entry_lock);
@@ -516,7 +511,7 @@ paddr_t get_contiguous_pages(int n_pages, int spl){
         
     }
     
-    //todo: clape: return something here
+    return ENOMEM;
 }
 
 
@@ -527,6 +522,7 @@ void free_contiguous_pages(vaddr_t vaddr){
     niter = page_table->contiguous[index];
 
 
+    DEBUG(DB_VM,"Process %d performs kfree for %d pages\n", curproc?curproc->p_pid:0,niter);
 
     nkmalloc -= niter;
     KASSERT(niter != -1);
@@ -540,20 +536,22 @@ void free_contiguous_pages(vaddr_t vaddr){
 
     page_table->contiguous[index] = -1;
 
-    print_nkmalloc();
+    DEBUG(DB_VM,"New kmalloc number after free=%d\n",nkmalloc);
 }
 
 void copy_pt_entries(pid_t old, pid_t new){
     int pos;
     for (int i = 0; i < page_table->n_entry; i++)
     {
-        if (page_table->entries[i].pid == old && page_table->entries[i].page != KMALLOC_PAGE && GetValidityBit(page_table->entries[i].ctrl))
+        if ( page_table->entries[i].pid == old 
+            && page_table->entries[i].page != KMALLOC_PAGE 
+            && GetValidityBit(page_table->entries[i].ctrl) )
         {
             KASSERT(!GetIOBit(page_table->entries[i].ctrl));
             KASSERT(GetSwapBit(page_table->entries[i].ctrl));
+            KASSERT(page_table->entries[i].page != KMALLOC_PAGE);
 
             page_table->entries[i].ctrl = SetIOBitOne(page_table->entries[i].ctrl);
-
 
             store_swap(page_table->entries[i].page, new , page_table->first_free_paddr + i*PAGE_SIZE);
 
@@ -561,6 +559,9 @@ void copy_pt_entries(pid_t old, pid_t new){
 
         }
     }
+    #if OPT_DEBUG
+    print_list(new);    //in swap_file.c
+    #endif
 }
 
 void end_copy_pt(pid_t pid){
