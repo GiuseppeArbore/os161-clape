@@ -1,19 +1,20 @@
 // page tables e manipolazione delle entry della page table
 
-#define GetValidityBit(x) (x & 0x1)
-#define GetReferenceBit(x) ((x >> 1) & 0x1)
-#define GetTlbBit(x) ((x >> 2) & 0x1)
-#define GetIOBit(x) ((x >> 3) & 0x1)
-#define GetSwapBit(x) ((x >> 4) & 0x1)
+#define GetValidityBit(x) (x & 1)
+#define GetReferenceBit(x) ((x >> 1) & 1)
+#define GetTlbBit(x) ((x >> 2) & 1)
+#define GetIOBit(x) ((x >> 3) & 1)
+#define GetSwapBit(x) ((x >> 4) & 1)
 
-#define SetValidityBitOne(x) (x | 0x1)
-#define SetReferenceBitOne(x) (x | 0x2)
-#define SetTlbBitOne(x) (x | 0x4)
-#define SetIOBitOne(x) (x | 0x8)
+#define SetValidityBitOne(x) (x | 1)
+#define SetReferenceBitOne(x) (x | 2)
+#define SetTlbBitOne(x) (x | 4)
+#define SetIOBitOne(x) (x | 8)
+#define SetSwapBitOne(x) (x | 16)
 
-#define SetReferenceBitZero(x) (x & 0x5)
-#define SetTlbBitZero(x) (x & 0x3)
-#define SetIOBitZero(x) (x & 0x7)
+#define SetReferenceBitZero(x) (x & 29)
+#define SetTlbBitZero(x) (x & 27)
+#define SetIOBitZero(x) (x & 23)
 
 #include "pt.h"
 #include "vmstats.h"
@@ -201,7 +202,7 @@ paddr_t pt_get_paddr(vaddr_t vaddr, pid_t pid, int s){
                         //CLAPE
                     }
                     lock_release(page_table->entries[i].entry_lock); //rilascio lock
-                    if (vaddr!=page_table->entries[i].vaddr || pid!=page_table->entries[i].pid || GetValidityBit(page_table->entries[i].ctrl)==0){
+                    if (vaddr!=page_table->entries[i].page || pid!=page_table->entries[i].pid || GetValidityBit(page_table->entries[i].ctrl)==0){ 
                         //se la voce non corrisponde a quella cercata o non è valida
                         continue;
                     }
@@ -427,7 +428,7 @@ paddr_t get_contiguous_pages(int n_pages, int spl){
         nfork++;
     }
     #endif  
-    
+
     while (1)
     {
         for (i=lastIndex; i<page_table->n_entry; i++)
@@ -586,7 +587,7 @@ void prepare_copy_pt(pid_t pid){
         if (page_table->entries[i].pid == pid && page_table->entries[i].page != KMALLOC_PAGE && GetValidityBit(page_table->entries[i].ctrl))
         {
             KASSERT(!GetIOBit(page_table->entries[i].ctrl));
-            page_table->entries[i].ctrl = SetIOBitOne(page_table->entries[i].ctrl);
+            page_table->entries[i].ctrl = SetSwapBitOne(page_table->entries[i].ctrl);
         }
     }
 }

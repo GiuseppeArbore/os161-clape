@@ -72,6 +72,7 @@ int find_victim(vaddr_t, pid_t, int);
 /**
  * funzione per ottenere la pagina, chiama pt_get_paddr se presente,
  * altrimenti chiama la funzione findspace che cerca spazio libero nella page table
+ * Setta il tlb bit ad 1
  * 
  * @param: indirizzo virtuale che vogliamo accedere
  * @param: pid 
