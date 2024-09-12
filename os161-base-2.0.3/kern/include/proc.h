@@ -75,7 +75,7 @@ struct proc {
 	struct vnode *p_cwd;		/* current working directory */
 
 	/* add more material here as needed */
-	pid_t pid;
+	pid_t p_pid;
 	int p_status;
 	struct cv *p_cv;
 	struct lock *p_lock_cv;
