@@ -60,7 +60,7 @@ as_create(void)
 	return as;
 }
 
-int as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid, int spl)
+int as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid)
 {
 	struct addrspace *newas;
 
@@ -69,9 +69,6 @@ int as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t 
 		return ENOMEM;
 	}
 
-	/*
-	 * Write this.
-	 */
 	newas->as_vbase1 = old->as_vbase1;
 	newas->as_npages1 = old->as_npages1;
 	newas->as_vbase2 = old->as_vbase2;
@@ -84,7 +81,7 @@ int as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t 
 	newas->initial_offset2 = old->initial_offset2;
 
 	prepare_copy_pt(old_pid);
-	copy_swap_pages(new_pid, old_pid, spl);
+	copy_swap_pages(new_pid, old_pid);
 	copy_pt_entries(old_pid, new_pid);
 	end_copy_pt(old_pid);
 
@@ -95,9 +92,7 @@ int as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t 
 void
 as_destroy(struct addrspace *as)
 {
-	/*
-	 * Clean up as needed.
-	 */
+
 	if(as->v->vn_refcount==1){
 		vfs_close(as->v);
 	}
@@ -114,7 +109,7 @@ as_activate(void)
 	struct addrspace *as;
 	int spl;
 	spl = splhigh();
-
+	DEBUG(DB_VM, "as_activate, runnando il proc%d\n", curproc->p_pid);
 	as = proc_getas();
 
 	if (as == NULL) {
@@ -125,9 +120,6 @@ as_activate(void)
 		return;
 	}
 
-	/*
-	 * Write this.
-	 */
 	tlb_invalidate_all();
 	splx(spl);
 }
@@ -156,15 +148,13 @@ int
 as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		 int readable, int writeable, int executable)
 {
-	/*
-	 * Write this.
-	 */
+
 	size_t npages;
 	size_t initial_offset;
 
 	/* Allineo la regione*/
 	// allineo la base della regione alla pagina più vicina
-	memsize += vaddr & ~(vaddr_t)PAGE_FRAME;
+	memsize += vaddr & ~(vaddr_t)PAGE_FRAME; // aggiungo la parte non allineata dopo aver isolato l'offset di vaddr
 	initial_offset = vaddr % PAGE_SIZE;
 	vaddr &= PAGE_FRAME;
 
