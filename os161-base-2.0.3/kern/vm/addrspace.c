@@ -60,8 +60,7 @@ as_create(void)
 	return as;
 }
 
-int
-as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid, int spl)
+int as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid, int spl)
 {
 	struct addrspace *newas;
 
@@ -85,12 +84,9 @@ as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_
 	newas->initial_offset2 = old->initial_offset2;
 
 	prepare_copy_pt(old_pid);
-	prepare_copy_swap(old_pid, new_pid);
 	copy_swap_pages(new_pid, old_pid, spl);
 	copy_pt_entries(old_pid, new_pid);
 	end_copy_pt(old_pid);
-	end_copy_swap(new_pid);
-
 
 	*ret = newas;
 	return 0;

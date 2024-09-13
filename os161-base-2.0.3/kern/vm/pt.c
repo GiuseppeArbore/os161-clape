@@ -386,7 +386,7 @@ paddr_t get_contiguous_pages(int n_pages, int spl){
             page_table->entries[i].page!=KMALLOC_PAGE && 
             (i==0 || prec)
         ){ 
-            first_pos=i;
+            first_pos=i;    //sono la prima pagina del blocco contiguo
         }
 
         if (first_pos>=0 && 
@@ -398,6 +398,7 @@ paddr_t get_contiguous_pages(int n_pages, int spl){
             i-first_pos==n_pages-1;
         )
         {
+            //se ho trovato tutte le pagine contigue che mi servivano
             DEBUG(DB_VM,"Kmalloc for process %d entry%d\n",curproc->p_pid,first);
             for (j=first_pos; j<=i; j++){
                 KASSERT(page_table->entries[i].page!=KMALLOC_PAGE);
@@ -447,10 +448,8 @@ paddr_t get_contiguous_pages(int n_pages, int spl){
                     ){
                         first_pos=i;
                     }    
-                if( first_pos>=0 && (
-                        !GetReferenceBit(page_table->entries[i].ctrl) || 
-                        !GetValidityBit(page_table->entries[i].ctrl) 
-                    ) &&
+                if( first_pos>=0 && 
+                    ( !GetReferenceBit(page_table->entries[i].ctrl) || !GetValidityBit(page_table->entries[i].ctrl)) &&
                     i-first_pos==n_pages-1
                 ) {
                     DEBUG(DB_VM,"Found a space for a kmalloc for process %d entry%d\n",curproc->p_pid,first_pos);
@@ -594,7 +593,6 @@ void prepare_copy_pt(pid_t pid){
         }
     }
 }
-
 
 
 void print_nkmalloc(void){
