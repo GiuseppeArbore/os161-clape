@@ -50,3 +50,13 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Local files
+doxygen/
+root/
+toolbuild/
+tools/
+build/
+/Makefile
+kern/compile/
+os161-base-2.0.3/kern/compile/

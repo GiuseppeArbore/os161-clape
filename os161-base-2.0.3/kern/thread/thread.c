@@ -782,11 +782,15 @@ thread_exit(void)
 
 	cur = curthread;
 
+	struct proc *p = curproc; //CLAPE added
+
 	/*
 	 * Detach from our process. You might need to move this action
 	 * around, depending on how your wait/exit works.
 	 */
-	proc_remthread(cur);
+	if(p!=NULL){
+		proc_remthread(cur);
+	}
 
 	/* Make sure we *are* detached (move this only if you're sure!) */
 	KASSERT(cur->t_proc == NULL);
@@ -795,7 +799,7 @@ thread_exit(void)
 	thread_checkstack(cur);
 
 	/* Interrupts off on this processor */
-        splhigh();
+    splhigh();
 	thread_switch(S_ZOMBIE, NULL, NULL);
 	panic("braaaaaaaiiiiiiiiiiinssssss\n");
 }
@@ -1179,7 +1183,7 @@ interprocessor_interrupt(void)
 	}
 	if (bits & (1U << IPI_OFFLINE)) {
 		/* offline request */
-		spinlock_release(&curcpu->c_ipi_lock);
+		spinlock_release(&curcpu->c_ipi_lock);os
 		spinlock_acquire(&curcpu->c_runqueue_lock);
 		if (!curcpu->c_isidle) {
 			kprintf("cpu%d: offline: warning: not idle\n",

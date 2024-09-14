@@ -33,6 +33,8 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <proc.h>
+#include "spl.h"
+#include "vm_tlb.h"
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
@@ -50,15 +52,15 @@ as_create(void)
 		return NULL;
 	}
 
-	/*
-	 * Initialize as needed.
-	 */
+	as->as_vbase1 = 0;
+	as->as_npages1 = 0;
+	as->as_vbase2 = 0;
+	as->as_npages2 = 0;
 
 	return as;
 }
 
-int
-as_copy(struct addrspace *old, struct addrspace **ret)
+int as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid)
 {
 	struct addrspace *newas;
 
@@ -67,11 +69,21 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		return ENOMEM;
 	}
 
-	/*
-	 * Write this.
-	 */
+	newas->as_vbase1 = old->as_vbase1;
+	newas->as_npages1 = old->as_npages1;
+	newas->as_vbase2 = old->as_vbase2;
+	newas->as_npages2 = old->as_npages2;
+	newas->ph1 = old->ph1;
+	newas->ph2 = old->ph2;
+	newas->v = old->v;
+	old->v->vn_refcount++;
+	newas->initial_offset1 = old->initial_offset1;
+	newas->initial_offset2 = old->initial_offset2;
 
-	(void)old;
+	prepare_copy_pt(old_pid);
+	copy_swap_pages(new_pid, old_pid);
+	copy_pt_entries(old_pid, new_pid);
+	end_copy_pt(old_pid);
 
 	*ret = newas;
 	return 0;
@@ -80,9 +92,13 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 void
 as_destroy(struct addrspace *as)
 {
-	/*
-	 * Clean up as needed.
-	 */
+
+	if(as->v->vn_refcount==1){
+		vfs_close(as->v);
+	}
+	else{
+		as->v->vn_refcount--;
+	}
 
 	kfree(as);
 }
@@ -91,8 +107,11 @@ void
 as_activate(void)
 {
 	struct addrspace *as;
-
+	int spl;
+	spl = splhigh();
+	DEBUG(DB_VM, "as_activate, runnando il proc%d\n", curproc->p_pid);
 	as = proc_getas();
+
 	if (as == NULL) {
 		/*
 		 * Kernel thread without an address space; leave the
@@ -101,9 +120,8 @@ as_activate(void)
 		return;
 	}
 
-	/*
-	 * Write this.
-	 */
+	tlb_invalidate_all();
+	splx(spl);
 }
 
 void
@@ -130,19 +148,49 @@ int
 as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		 int readable, int writeable, int executable)
 {
-	/*
-	 * Write this.
-	 */
 
-	(void)as;
-	(void)vaddr;
-	(void)memsize;
+	size_t npages;
+	size_t initial_offset;
+
+	/* Allineo la regione*/
+	// allineo la base della regione alla pagina più vicina
+	memsize += vaddr & ~(vaddr_t)PAGE_FRAME; // aggiungo la parte non allineata dopo aver isolato l'offset di vaddr
+	initial_offset = vaddr % PAGE_SIZE;
+	vaddr &= PAGE_FRAME;
+
+	// verifico la lunghezza
+	memsize = (memsize + initial_offset + PAGE_SIZE - 1) & PAGE_FRAME;
+	npages = memsize / PAGE_SIZE;
+
+
+	//CLAPE: Non le stiamo usando, capire che farci
 	(void)readable;
 	(void)writeable;
 	(void)executable;
+
+	if (as->as_vbase1 == 0) {
+		DEBUG(DB_VM, "as_define_region: vaddr 0x%x \n", vaddr);
+		as->as_vbase1 = vaddr;
+		as->as_npages1 = npages;
+		as->initial_offset1 = initial_offset;
+		return 0;
+	}
+
+	if (as->as_vbase2 == 0) {
+		DEBUG(DB_VM, "as_define_region: vaddr 0x%x \n", vaddr);
+		as->as_vbase2 = vaddr;
+		as->as_npages2 = npages;
+		as->initial_offset2 = initial_offset;
+		return 0;
+	}
+
+	kprintf("Too many regions\n");
 	return ENOSYS;
 }
 
+/**
+ * non necessario con la paginazione on demand poichè non carichiamo nulla senza un fault
+ */
 int
 as_prepare_load(struct addrspace *as)
 {
@@ -154,6 +202,9 @@ as_prepare_load(struct addrspace *as)
 	return 0;
 }
 
+/**
+ * non necessario con la paginazione on demand poichè non carichiamo nulla senza un fault
+ */
 int
 as_complete_load(struct addrspace *as)
 {
@@ -168,9 +219,6 @@ as_complete_load(struct addrspace *as)
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-	/*
-	 * Write this.
-	 */
 
 	(void)as;
 
@@ -178,5 +226,116 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	*stackptr = USERSTACK;
 
 	return 0;
+}
+
+int as_is_ok(void){
+	struct addrspace *as = proc_getas();
+
+	if (as == NULL)
+	{
+		return 0;
+	}
+	else if(as->as_vbase1 == 0 || 
+		as->as_vbase2 == 0 ||
+		as->as_npages1 == 0 ||
+		as->as_npages2 == 0 ||
+		){
+		return 0;
+	}
+	return 1;
+}
+
+
+void vm_bootstrap(void){
+	swap_init();
+	pt_init();
+}
+
+void vm_tlbshootdown(const struct tlbshootdown *ts){
+	(void)ts;
+	panic("tlbshootdown");
+}
+
+void vm_shutdown(void){
+	for (int i = 0; i < page_table->n_entry; i++)
+	{
+		if (page_table->entries[i].ctrl!=0)
+		{
+			kprintf("Page %d is still in the page table\n",i); //TODO: CLAPE: capire bene se entry o page
+			/*
+				kprintf("Entry%d has not been freed! ctl=%d, pid=%d\n",i,peps.pt[i].ctl,peps.pt[i].pid);
+
+			*/
+		}
+		if (page_table->entries[i].page==1)
+		{
+			kprintf("errore , capire bene cosa stampare\n"); //TODO: CLAPE
+			/*
+				kprintf("It looks like some errors with free occurred: entry%d, process %d\n",i,peps.pt[i].pid);
+			*/
+		}		
+	}
+	stats_print();
+}
+
+
+vaddr_t alloc_kpages(unsigned n_pages){
+	int spl = splhigh();
+	paddr_t paddr;
+
+	spinlock_acquire(&stealmem_lock);
+
+	if (!pt_active){
+		paddr = getppages(n_pages);
+	}
+	else {
+		nkmalloc+=n_pages;
+		spinlock_release(&stealmem_lock);
+		paddr = get_contiguous_pages(n_pages, spl);
+		spinlock_acquire(&stealmem_lock);
+	}
+
+	spinlock_release(&stealmem_lock);
+
+	splx(spl);
+
+	return PADDR_TO_KVADDR(paddr);
+}
+
+void free_kpages(vaddr_t addr){
+
+	int spl = splhigh();
+	
+	//todo: CLAPE: si potrebbe aggiungere un controlla su pt attiva e su indirizzo
+	paddr_t paddr = KVADDR_TO_PADDR(addr);
+
+	spinlock_acquire(&stealmem_lock);
+
+	if (!pt_active || addr< PADDR_TO_KVADDR(page_table->firstfreepaddr)){
+		ram_stealmem_free(paddr); //TODO: clape: aggiunto
+	}
+	else {
+		//nkmalloc--;
+		spinlock_release(&stealmem_lock);
+		free_contiguous_pages(paddr, spl);
+		spinlock_acquire(&stealmem_lock);
+	}
+
+	spinlock_release(&stealmem_lock);
+
+	splx(spl);
+}
+
+void address_space_init(void){
+	spinlock_init(&stealmem_lock); //todo: importare stealmem_lock
+	pt_active=0;
+}
+
+static paddr_t getppages(unsigned long n_pages){
+	paddr_t addr;
+
+	addr = ram_stealmem(n_pages);
+
+	return addr;
 }
 
