@@ -174,51 +174,26 @@ int find_victim(vaddr_t vaddr, pid_t pid, int s){
 /*
 * funzione per ottenere l'indirizzo fisico di un indirizzo logico
 */
-paddr_t pt_get_paddr(vaddr_t vaddr, pid_t pid, int s){
-    int validity, stopped;
+paddr_t pt_get_paddr(vaddr_t vaddr, pid_t pid){
 
-    stopped = 1;    //ciclo di attesa attivo
-
-    while (stopped){
-        stopped=0; //ciclo di attesa disattivato
-        for (int i=0; i<page_table.n_entry; i++){  //scorro la page table
-            if (GetValidityBit(page_table.entries[i].ctrl)){
-                //voce valida
-                if (page_table.entries[i].pid==pid && page_table.entries[i].page==vaddr){
-                    //voce corrisponde a quella cercata
-                    lock_acquire(page_table.entries[i].entry_lock); //acquisisco lock
-                    while(GetIOBit(page_table.entries[i].ctrl)){ //se coinvolto in IO continuo a ciclare
-                        stopped=1; //ciclo di attesa attivo
-                        splx(s); //abilito interrupts
-                        cv_wait(page_table.entries[i].entry_cv, page_table.entries[i].entry_lock); //attendo
-                        spl=splhigh(); //disabilito interrupts
-                        //CLAPE
-                    }
-                    lock_release(page_table.entries[i].entry_lock); //rilascio lock
-                    if (vaddr!=page_table.entries[i].page || pid!=page_table.entries[i].pid || GetValidityBit(page_table.entries[i].ctrl)==0){ 
-                        //se la voce non corrisponde a quella cercata o non è valida
-                        continue;
-                    }
-
-                    // verifiche su bit di controllo
-                    KASSERT(!GetIOBit(page_table.entries[i].ctrl)); 
-                    KASSERT(!GetTlbBit(page_table.entries[i].ctrl));
-                    KASSERT(page_table.entries[i].page!=KMALLOC_PAGE);
-
-                    page_table.entries[i].ctrl=SetTlbBitOne(page_table.entries[i].ctrl); //setto bit tlb ad 1
-                    return i*PAGE_SIZE + page_table.first_free_paddr; //ritorno l'indirizzo fisico
-
-                }                
-            }
-        }
+    int i = get_index_from_hash(vaddr, pid);
+    if (i == -1){
+        return -1;
     }
 
-    return -1; //in caso di non trovato nell'IPT
+    KASSERT(page_table.entries[i].pid == pid);
+    KASSERT(page_table.entries[i].page == vaddr);
+    KASSERT(page_table.entries[i].page != KMALLOC_PAGE);
+    KASSERT(!GetIOBit(page_table.entries[i].ctrl));
+    KASSERT(!GetTlbBit(page_table.entries[i].ctrl));
+
+    page_table.entries[i].ctrl = SetTlbBitOne(page_table.entries[i].ctrl);
+
+    return i * PAGE_SIZE + page_table.first_free_paddr;
 }
 
 
 paddr_t get_page(vaddr_t v){
-
     pid_t pid = proc_getpid(curproc); // pid corrente
     int res;
     paddr_t phisical;
@@ -570,9 +545,6 @@ void end_copy_pt(pid_t pid){
         {
             KASSERT(GetSwapBit(page_table.entries[i].ctrl));
             page_table.entries[i].ctrl = SetSwapBitZero(page_table.entries[i].ctrl);
-            lock_acquire(page_table.entries[i].entry_lock);
-            cv_broadcast(page_table.entries[i].entry_cv, page_table.entries[i].entry_lock);
-            lock_release(page_table.entries[i].entry_lock);
         }
     }
 
@@ -590,11 +562,6 @@ void prepare_copy_pt(pid_t pid){
             page_table.entries[i].ctrl = SetSwapBitOne(page_table.entries[i].ctrl);
         }
     }
-}
-
-
-void print_nkmalloc(void){
-    kprintf("Final number of kmalloc: %d\n",nkmalloc);
 }
 
 
@@ -639,3 +606,20 @@ int get_index_from_hash(vaddr_t vad, pid_t pid){
     }
     return -1;
 }
+
+void add_in_hash(vaddr_t vad, pid_t pid, int ipt_entry){
+    int val = get_hash_func(vad, pid);
+    struct hashentry *tmp = unused_ptr_list;
+    unused_ptr_list = unused_ptr_list->next;
+    tmp->vad = vad;
+    tmp->pid = pid;
+    tmp->ipt_entry = ipt_entry;
+    tmp->next = htable.table[val];
+    htable.table[val] = tmp;
+}
+
+#if OPT_DEBUG
+void print_nkmalloc(void){
+    kprintf("Final number of kmalloc: %d\n",nkmalloc);
+}
+#endif
