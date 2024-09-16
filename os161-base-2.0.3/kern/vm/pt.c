@@ -295,7 +295,7 @@ int update_tlb_bit(vaddr_t v, pid_t p){
 
 
             KASSERT(page_table\entries[i].page != KMALLOC_PAGE); 
-            KASSERT(!GetTlbBit(page_table->entries[i].ctrl)); 
+            KASSERT(GetTlbBit(page_table->entries[i].ctrl)); 
 
             page_table->entries[i].ctrl = SetTlbBitZero(page_table->entries[i].ctrl);
             page_table->entries[i].ctrl = SetReferenceBitOne(page_table->entries[i].ctrl);
