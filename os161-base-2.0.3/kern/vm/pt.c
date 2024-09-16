@@ -90,28 +90,6 @@ void pt_init(void){
     spinlock_release(&stealmem_lock);
 }
 
-void hashtable_init(void)  {
-    htable.size= 2 *page_table->n_entry;
-
-    htable.table = kmalloc(sizeof(struct hentry *) * htable.size);
-    for (int i =0; i < htable.size; i++){
-        htable.table[i] = NULL; //nessun puntatore all'interno dell'array di liste
-    }
-
-    unusedptrlist = NULL;
-    struct hashentry *tmp;
-    for (int j = 0; j < page_table->n_entry; j++){ //iniziallizo unused ptr list
-        tmp = kmalloc(sizeof(struct hashentry));
-        KASSERT((unsigned int)tmp>0x80000000);
-        if (!tmp)
-        {
-            panic("Error during hashpt elements allocation");
-        }
-        tmp->next = unusedptrlist;
-        unusedptrlist = tmp;
-    } 
-}
-
 static int findspace() {    
     for(int i=0; i<page_table->n_entry; i++){
         if (GetValidityBit(page_table->entries[i].ctrl) || GetIOBit(page_table->entries[i].ctrl) || GetSwapBit(page_table->entries[i].ctrl)){
@@ -239,7 +217,7 @@ paddr_t pt_get_paddr(vaddr_t vaddr, pid_t pid, int s){
 }
 
 
-paddr_t get_page(vaddr_t v, int spl){
+paddr_t get_page(vaddr_t v){
 
     pid_t pid = proc_getpid(curproc); // pid corrente
     int res;
@@ -258,12 +236,13 @@ paddr_t get_page(vaddr_t v, int spl){
     int pos = findspace(v,pid); 
     if (pos == -1) //non trovato libero, cerco vittima
     {
-        pos = find_victim(v, pid, spl);
+        pos = find_victim(v, pid);
         KASSERT(pos<page_table->n_entry);
         phisical = page_table->first_free_paddr + pos*PAGE_SIZE;
     }
     else{
         KASSERT(pos<page_table->n_entry);
+        add_in_hash(v,pid,pos);
         phisical = page_table->first_free_paddr + pos*PAGE_SIZE;
         page_table->entries[pos].ctrl= SetValidityBitOne(page_table->entries[pos].ctrl);
         page_table->entries[pos].ctrl= SetIOBitOne(page_table->entries[pos].ctrl);
@@ -274,12 +253,6 @@ paddr_t get_page(vaddr_t v, int spl){
     KASSERT(page_table->entries[pos].page !=KMALLOC_PAGE);
     load_page(v, pid, phisical);
     page_table->entries[pos].ctrl = SetIOBitZero(page_table->entries[pos].ctrl );
-    lock_acquire(page_table->entries[pos].entry_lock);
-    cv_broadcast(page_table->entries[pos].entry_cv,page_table->entries[pos].entry_lock);
-    lock_release(page_table->entries[pos].entry_lock);
-    lock_acquire(page_table->pt_lock);
-    cv_broadcast(page_table->pt_cv,page_table->pt_lock);
-    lock_release(page_table->pt_lock);
     page_table->entries[pos].ctrl = SetTlbBitOne(page_table->entries[pos].ctrl);
 
     return phisical;
@@ -287,7 +260,9 @@ paddr_t get_page(vaddr_t v, int spl){
 
 
 void free_pages(pid_t pid){
-    for(int i=0; i<page_table->n_entry; i++){
+
+    for(int i=0; i<page_table->n_entry; i++)
+    {
         if(page_table->entries[i].pid == pid && GetValidityBit(page_table->entries[i].ctrl) && page_table->entries[i].page != KMALLOC_PAGE){
             
             //controllo se la pagina è in uso
@@ -295,6 +270,7 @@ void free_pages(pid_t pid){
             KASSERT(page_table->entries[i].page != KMALLOC_PAGE);
             KASSERT(!GetSwapBit(page_table->entries[i].ctrl));
 
+            remove_from_hash(page_table.entries[i].page, pid);
 
             page_table->entries[i].ctrl = 0;
             page_table->entries[i].pid = 0;
@@ -619,4 +595,47 @@ void prepare_copy_pt(pid_t pid){
 
 void print_nkmalloc(void){
     kprintf("Final number of kmalloc: %d\n",nkmalloc);
+}
+
+
+void hashtable_init(void)  {
+    htable.size= 2 *page_table->n_entry;
+
+    htable.table = kmalloc(sizeof(struct hentry *) * htable.size);
+    for (int i =0; i < htable.size; i++){
+        htable.table[i] = NULL; //nessun puntatore all'interno dell'array di liste
+    }
+
+    unused_ptr_list = NULL;
+    struct hashentry *tmp;
+    for (int j = 0; j < page_table->n_entry; j++){ //iniziallizo unused ptr list
+        tmp = kmalloc(sizeof(struct hashentry));
+        KASSERT((unsigned int)tmp>0x80000000);
+        if (!tmp)
+        {
+            panic("Error during hashpt elements allocation");
+        }
+        tmp->next = unusedptrlist;
+        unused_ptr_list = tmp;
+    } 
+}
+
+int get_index_from_hash(vaddr_t vad, pid_t pid){
+    
+    int val = get_hash_func(vad, pid);
+    struct hashentry *tmp = htable.table[val];
+    #if OPT_DEBUG
+    if(tmp!=NULL)
+        kprintf("Value of tmp: 0x%x, pid=%d\n",tmp->vad,tmp->pid);
+    #endif
+    while (tmp != NULL)
+    {
+        KASSERT((unsigned int)tmp>0x80000000 && (unsigned int)tmp<=0x9FFFFFFF); //verifica che il puntatore sia in keseg0 (per accesso diretto alla mem fisica)
+        if (tmp->vad == vad && tmp->pid == pid)
+        {
+            return tmp->ipt_entry;
+        }
+        tmp = tmp->next;
+    }
+    return -1;
 }
