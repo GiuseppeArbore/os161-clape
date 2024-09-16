@@ -11,8 +11,9 @@
 
 
 int pt_active; // flag per sapere se la page table è attiva
-
+#if OPT_DEBUG
 int nkmalloc; //TODO: CLAPE
+#endif
 
 /**
 * Struttura dati per gestire la page table
@@ -21,8 +22,6 @@ struct pt_entry {
     vaddr_t page; // indirizzo virtuale
     pid_t pid; // pid del processo a cui appartiene la pagina
     uint8_t ctrl; // bit di controllo come: validity, reference,isInTlb, ---
-    struct lock *entry_lock; // lock per la pagina
-    struct cv *entry_cv; // cv per la pagina
 };
 
 
@@ -38,9 +37,32 @@ struct pt_info{
     int *contiguous;    // array di flag per sapere se le pagine sono contigue
     //todo: CLAPE aggiungeere eventuale lock e cv
  
-}; 
+} page_table; 
 
-struct pt_info *page_table; // CLAPE nostra page table
+
+/**
+ * singola entry della hash table
+ */
+struct hash_entry{
+    int ipt_entry;  
+    vaddr_t vad;
+    pid_t pid;
+    struct hash_entry *next;    
+};
+
+/**
+ * struttura della hash_table
+ */
+struct hash_table{
+    struct hash_entry **table;
+    int size;
+} htable;
+
+/*
+    list where all unused blocks for the hast table are stored
+*/
+struct hash_entry *unused_ptr_list; 
+
 
 /**
 * Questa funzione inizializza la page table
@@ -53,20 +75,17 @@ void pt_init(void);
 *
 * @param: indirizzo virtuale che voliamo accedere
 * @param: pid del processo che chiede per la page table
-* @param: int -> TODOOOOOOOOOOOOOOOOOOOOOOOOOO CLAPE
-* 
 * @return -1 se la page table non esiste nella page table, altrimenti l'indirizzo fisico
 */
-int pt_get_paddr(vaddr_t, pid_t, int);
+int pt_get_paddr(vaddr_t, pid_t);
 
 /**
  * funzione per trovare vittima nella page table
  * 
  * @param: indirizzo virtuale che vogliamo accedere
  * @param: pid del processo che chiede per la page table
- * @param: int -> TODO
  */
-int find_victim(vaddr_t, pid_t, int);
+int find_victim(vaddr_t, pid_t);
 
 
 /**
@@ -75,10 +94,8 @@ int find_victim(vaddr_t, pid_t, int);
  * Setta il tlb bit ad 1
  * 
  * @param: indirizzo virtuale che vogliamo accedere
- * @param: pid 
- * @param: int
  */
-paddr_t get_page(vaddr_t, int);
+paddr_t get_page(vaddr_t);
 
 /**
 * Questa funzione carica una nuova pagina dall'elf file.
@@ -97,14 +114,14 @@ paddr_t pt_load_page(vaddr_t, pid_t); //TODO: CLAPE: capire se serve
 *
 * @param pid del processo che termina
 *
-* @return 0 in caso di successo, -1 in caso di errore
+* @return void
 */
-int free_pages(pid_t);
+void free_pages(pid_t);
 
 
 int update_tlb_bit(vaddr_t, pid_t);
 
-paddr_t get_contiguous_pages(int, int);
+paddr_t get_contiguous_pages(int);
 
 void free_contiguous_pages(vaddr_t);
 
@@ -117,5 +134,33 @@ void prepare_copy_pt(pid_t);
 void end_copy_pt(pid_t);
 
 void free_forgotten_pages(void);
+
+/**
+ * funzione per inizializzare la page table
+ * 
+ * @param void
+ * @return void
+ */
+void hashtable_init(void);
+
+
+void add_in_hash(vaddr_t, pid_t, int);
+
+int get_index_from_hash(vaddr_t, pid_t);
+
+/**
+ * 
+ */
+void remove_from_hash(vaddr_t, pid_t);
+
+/**
+ * calcola l'entry della hash table usando una funzione di hash
+ * 
+ * @param vaddr_t: indirizzo virtuale
+ * @param pid_t: pid del processo
+ * 
+ * @return entry della page table
+ */
+int get_hash_func(vaddr_t, pid_t);
 
 #endif /* _PT_H_ */
