@@ -90,6 +90,28 @@ void pt_init(void){
     spinlock_release(&stealmem_lock);
 }
 
+void hashtable_init(void)  {
+    htable.size= 2 *page_table->n_entry;
+
+    htable.table = kmalloc(sizeof(struct hentry *) * htable.size);
+    for (int i =0; i < htable.size; i++){
+        htable.table[i] = NULL; //nessun puntatore all'interno dell'array di liste
+    }
+
+    unusedptrlist = NULL;
+    struct hashentry *tmp;
+    for (int j = 0; j < page_table->n_entry; j++){ //iniziallizo unused ptr list
+        tmp = kmalloc(sizeof(struct hashentry));
+        KASSERT((unsigned int)tmp>0x80000000);
+        if (!tmp)
+        {
+            panic("Error during hashpt elements allocation");
+        }
+        tmp->next = unusedptrlist;
+        unusedptrlist = tmp;
+    } 
+}
+
 static int findspace() {    
     for(int i=0; i<page_table->n_entry; i++){
         if (GetValidityBit(page_table->entries[i].ctrl) || GetIOBit(page_table->entries[i].ctrl) || GetSwapBit(page_table->entries[i].ctrl)){
