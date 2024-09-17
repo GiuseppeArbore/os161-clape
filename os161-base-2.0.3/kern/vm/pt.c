@@ -619,6 +619,54 @@ void add_in_hash(vaddr_t vad, pid_t pid, int ipt_entry){
 }
 
 #if OPT_DEBUG
+static int rem=0
+#endif
+
+void remove_from_hash(vaddr_t v, pid_t pid){
+    #if OPT_DEBUG
+    rem++;
+    #endif
+
+    int val =  get_hash_func(v, pid);
+    DEBUG(DB_VM, "Rimuovo da hash 0x%x per il processo %d, pos %d\n", v, pid, val);
+
+    struct hash_entry *tmp = htable.table[val];
+    struct hash_entry *prev = NULL;
+
+    if (tmp == NULL){
+        panic("Errore durante la rimozione dall'hash");
+    }
+
+    if (tmp->vad == v && tmp->pid==pid){
+        tmp->vad = 0;
+        tmp->pid = 0;
+        htable.table[val] = tmp->next;
+        tmp->next = unused_ptr_list;
+        unused_ptr_list = tmp;
+        return;
+    }
+
+    prev = tmp;
+    tmp = tmp->next;
+
+    while (tmp != NULL){
+        if(tmp->vad == v && tmp->pid==pid){
+            tmp->vad = 0;
+            tmp->pid = 0;
+            tmp->ipt_entry = -1;
+            prev->next = tmp->next;
+            tmp->next = unused_ptr_list;
+            return;
+        }
+        prev = tmp;
+        tmp = tmp->next;
+    }
+    
+    panic("Non è stato trovato niente da rimuovere");    
+
+}
+
+#if OPT_DEBUG
 void print_nkmalloc(void){
     kprintf("Final number of kmalloc: %d\n",nkmalloc);
 }
