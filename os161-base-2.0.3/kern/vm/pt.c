@@ -521,16 +521,29 @@ void copy_pt_entries(pid_t old, pid_t new){
             && page_table.entries[i].page != KMALLOC_PAGE 
             && GetValidityBit(page_table.entries[i].ctrl) )
         {
-            KASSERT(!GetIOBit(page_table.entries[i].ctrl));
-            KASSERT(GetSwapBit(page_table.entries[i].ctrl));
-            KASSERT(page_table.entries[i].page != KMALLOC_PAGE);
+            pos = findspace();
 
-            page_table.entries[i].ctrl = SetIOBitOne(page_table.entries[i].ctrl);
+            if(pos==-1){
+                KASSERT(!GetIOBit(page_table.entries[i].ctrl));
+                KASSERT(GetSwapBit(page_table.entries[i].ctrl));
+                KASSERT(page_table.entries[i].page != KMALLOC_PAGE);
+                DEBUG(DB_VM,"Copiato dall'indirizzo pt 0x%x per il processo %d\n", page_table.entries[i].page, new);
+                store_swap(page_table.entries[i].page, new , page_table.first_free_paddr + i*PAGE_SIZE);
 
-            store_swap(page_table.entries[i].page, new , page_table.first_free_paddr + i*PAGE_SIZE);
+            } else{
+                page_table.entries[pos].ctrl = SetValidityBitOne(page_table.entries[pos].ctrl);
+                page_table.entries[pos].page = page_table.entries[i].page;
+                page_table.entries[pos].pid = new;
+                add_in_hash(page_table.entries[i].page, new, pos);
 
-            page_table.entries[i].ctrl = SetIOBitZero(page_table.entries[i].ctrl);
+                memmove((void*)PADDR_TO_KVADDR(page_table.first_free_paddr+ pos*PAGE_SIZE),(void *)PADDR_TO_KVADDR(page_table.first_free_paddr + i*PAGE_SIZE), PAGE_SIZE);
+                
+                KASSERT(!GetIOBit(page_table.entries[i].ctrl));
+                KASSERT(!GetSwapBit(page_table.entries[i].ctrl));
+                KASSERT(!GetTlbBit(page_table.entries[i].ctrl));
+                KASSERT(page_table.entries[i].page != KMALLOC_PAGE);
 
+            }
         }
     }
     #if OPT_DEBUG
