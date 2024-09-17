@@ -107,22 +107,27 @@ static int n=0;
 #endif
 
 int find_victim(vaddr_t vaddr, pid_t pid, int s){
-    int i, start_index=lastIndex, first=0;
+    int i, start_index=lastIndex;
+    int n_iter=0;
     int old_validity=0;
     pid_t old_pid;
-    vaddr_t old_page;
+    vaddr_t old_v;
 
     #if OPT_DEBUG
     if (n==0)
     {
         DEBUG(DB_VM, "Inizio a cercare vittime\n");
-        n=1;
+        n++;
     }
     #endif
 
     for (i = lastIndex;; i = (i+1)%page_table.n_entry)
     {
-        if (!GetTlbBit(page_table.entries[i].ctrl) && !GetIOBit(page_table.entries[i].ctrl) && page_table.entries[i].page != KMALLOC_PAGE){
+        if (!GetTlbBit(page_table.entries[i].ctrl) 
+            && !GetIOBit(page_table.entries[i].ctrl) 
+            && page_table.entries[i].page != KMALLOC_PAGE
+            && !GetSwapBit(page_table.entries[i].ctrl)
+        ){
             //se la pagina non è in tlb, non è in IO e non è in kmalloc
             if(GetReferenceBit(page_table.entries[i].ctrl)==0){
                 //se il bit di riferimento è a 0 -> vittima trovata
@@ -130,10 +135,11 @@ int find_victim(vaddr_t vaddr, pid_t pid, int s){
                 KASSERT(!GetIOBit(page_table.entries[i].ctrl));
                 KASSERT(!GetSwapBit(page_table.entries[i].ctrl));
                 KASSERT(!GetTlbBit(page_table.entries[i].ctrl));
+                KASSERT(page_table.entries[i].page != KMALLOC_PAGE);
 
                 old_pid = page_table.entries[i].pid;
                 old_validity = GetValidityBit(page_table.entries[i].ctrl);
-                old_page = page_table.entries[i].page;
+                old_v = page_table.entries[i].page;
 
                 page_table.entries[i].pid = pid;
                 page_table.entries[i].page = vaddr;
@@ -141,8 +147,10 @@ int find_victim(vaddr_t vaddr, pid_t pid, int s){
                 page_table.entries[i].ctrl=SetValidityBitOne(page_table.entries[i].ctrl);
 
                 if (old_validity){
-                    store_swap(old_page, old_pid * PAGE_SIZE + page_table.first_free_paddr ); 
+                    remove_from_hash(old_v, old_pid);
+                    store_swap(old_v, old_pid, i* PAGE_SIZE + page_table.first_free_paddr ); 
                 }
+                add_in_hash(vaddr, pid, i);
                 lastIndex = (i+1)%page_table.n_entry;
                 return i;
             }else{
@@ -156,15 +164,14 @@ int find_victim(vaddr_t vaddr, pid_t pid, int s){
         */
 
         if((i+1) % page_table.n_entry == start_index){
-            if(first==1){
-                lock_acquire(page_table.pt_lock);
-                splx(s);
-                cv_wait(page_table.pt_cv, page_table.pt_lock);
-                spl=splhigh();
-                lock_release(page_table.pt_lock);
-            }else{
-                first=1;
+            if(n_iter<2){
+                n_iter++;
                 continue;
+            }else{
+                lock_acquire(page_table.pt_lock);
+                cv_wait(page_table.pt_cv, page_table.pt_lock);
+                lock_release(page_table.pt_lock);
+                n_iter=0;
             }
         }
     }
