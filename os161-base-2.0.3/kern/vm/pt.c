@@ -42,9 +42,13 @@ int lastIndex = 0;
 * @var: framesForPt: numero di frame che la page table occupa
 */
 void pt_init(void){
-    int num_frames; // entry_in_frames, frames_for_pt;
     spinlock_acquire(&stealmem_lock);
+    int num_frames; // entry_in_frames, frames_for_pt;
+
+    #if OPT_DEBUG
     nkmalloc = 0;
+    #endif
+
     num_frames = (mainbus_ramsize() - ram_stealmem(0)) / PAGE_SIZE ; //numero di frame disponibili
 
     spinlock_release(&stealmem_lock);
@@ -64,6 +68,7 @@ void pt_init(void){
     spinlock_release(&stealmem_lock);
 
     page_table.contiguous = kmalloc(num_frames * sizeof(int));
+    
     spinlock_acquire(&stealmem_lock);
     if(page_table.contiguous == NULL){
         panic("Errore nell'allocazione del flag per le pagine contigue");
@@ -72,21 +77,16 @@ void pt_init(void){
     for (int i = 0; i < num_frames; i++){
         page_table.entries[i].ctrl = 0;
         page_table.contiguous[i] = -1;
-        spinlock_release(&stealmem_lock);
-        page_table.entries[i].entry_lock = lock_create("entry_lock");
-        page_table.entries[i].entry_cv = cv_create("entry_cv");
-        if(page_table.entries[i].entry_lock == NULL || page_table.entries[i].entry_cv == NULL){
-            panic("Errore nella creazione del lock o cv della entry");
-        }
-        spinlock_acquire(&stealmem_lock);
     }
-        
-    page_table.first_free_paddr = ram_stealmem(0);
 
     DEBUG(DB_VM,"\nRam size :0x%x, first free address: 0x%x, memoria disponibile: 0x%x",mainbus_ramsize(),ram_stealmem(0),mainbus_ramsize()-ram_stealmem(0));
 
     page_table.n_entry = ((mainbus_ramsize() - ram_stealmem(0)) / PAGE_SIZE) -1;
+    page_table.first_free_paddr = ram_stealmem(0);
+
+
     pt_active = 1;
+
     spinlock_release(&stealmem_lock);
 }
 
