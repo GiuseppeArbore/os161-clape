@@ -169,7 +169,7 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	(void)executable;
 
 	if (as->as_vbase1 == 0) {
-		DEBUG(DB_VM, "as_define_region: vaddr 0x%x \n", vaddr);
+		DEBUG(DB_VM, "as_define_region, text : vaddr 0x%x \n", vaddr);
 		as->as_vbase1 = vaddr;
 		as->as_npages1 = npages;
 		as->initial_offset1 = initial_offset;
@@ -177,14 +177,14 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	}
 
 	if (as->as_vbase2 == 0) {
-		DEBUG(DB_VM, "as_define_region: vaddr 0x%x \n", vaddr);
+		DEBUG(DB_VM, "as_define_region, data : vaddr 0x%x \n", vaddr);
 		as->as_vbase2 = vaddr;
 		as->as_npages2 = npages;
 		as->initial_offset2 = initial_offset;
 		return 0;
 	}
 
-	kprintf("Too many regions\n");
+	kprintf("dumbvm: Warning : Too many regions\n");
 	return ENOSYS;
 }
 
@@ -249,6 +249,7 @@ int as_is_ok(void){
 void vm_bootstrap(void){
 	swap_init();
 	pt_init();
+	hashtable_init();
 }
 
 void vm_tlbshootdown(const struct tlbshootdown *ts){
@@ -257,6 +258,8 @@ void vm_tlbshootdown(const struct tlbshootdown *ts){
 }
 
 void vm_shutdown(void){
+
+	#if OPT_DEBUG
 	for (int i = 0; i < page_table->n_entry; i++)
 	{
 		if (page_table->entries[i].ctrl!=0)
@@ -275,6 +278,7 @@ void vm_shutdown(void){
 			*/
 		}		
 	}
+	#endif
 	stats_print();
 }
 
@@ -289,7 +293,9 @@ vaddr_t alloc_kpages(unsigned n_pages){
 		paddr = getppages(n_pages);
 	}
 	else {
+		#if OPT_DEBUG
 		nkmalloc+=n_pages;
+		#endif
 		spinlock_release(&stealmem_lock);
 		paddr = get_contiguous_pages(n_pages, spl);
 		spinlock_acquire(&stealmem_lock);
@@ -299,6 +305,9 @@ vaddr_t alloc_kpages(unsigned n_pages){
 
 	splx(spl);
 
+	KASSERT(PADDR_TO_KVADDR(p)>0x80000000 && PADDR_TO_KVADDR(p)<=0x90000000);
+
+
 	return PADDR_TO_KVADDR(paddr);
 }
 
@@ -306,16 +315,11 @@ void free_kpages(vaddr_t addr){
 
 	int spl = splhigh();
 	
-	//todo: CLAPE: si potrebbe aggiungere un controlla su pt attiva e su indirizzo
 	paddr_t paddr = KVADDR_TO_PADDR(addr);
 
 	spinlock_acquire(&stealmem_lock);
 
-	if (!pt_active || addr< PADDR_TO_KVADDR(page_table->firstfreepaddr)){
-		ram_stealmem_free(paddr); //TODO: clape: aggiunto
-	}
-	else {
-		//nkmalloc--;
+	if (pt_active && addr>=PADDR_TO_KVADDR(page_table->firstfreepaddr)){
 		spinlock_release(&stealmem_lock);
 		free_contiguous_pages(paddr, spl);
 		spinlock_acquire(&stealmem_lock);
@@ -339,3 +343,6 @@ static paddr_t getppages(unsigned long n_pages){
 	return addr;
 }
 
+void create_sem_fork(void){
+	sem_fork = sem_create("sem_fork",1);
+}
