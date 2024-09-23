@@ -311,39 +311,10 @@ static int nfork=0;
 #endif
 
 
-paddr_t get_contiguous_pages(int n_pages, int spl){
+paddr_t get_contiguous_pages(int n_pages ){
 
     DEBUG(DB_VM,"Process %d performs kmalloc for %d pages\n", curproc->p_pid,npages);
 
-    if (n_pages==1)
-    {
-        paddr_t phisical;
-        int pos = findspace(KMALLOC_PAGE, curproc->p_pid); 
-        if (pos == -1)
-        {
-            pos = find_victim(KMALLOC_PAGE, curproc->p_pid, spl);
-            page_table.entries[pos].ctrl = SetIOBitZero(page_table.entries[pos].ctrl);
-            lock_acquire(page_table.entries[pos].entry_lock);
-            cv_broadcast(page_table.entries[pos].entry_cv, page_table.entries[pos].entry_lock);
-            lock_release(page_table.entries[pos].entry_lock);
-            lock_acquire(page_table.pt_lock);
-            cv_broadcast(page_table.pt_cv, page_table.pt_lock);
-            lock_release(page_table.pt_lock);
-            KASSERT(pos<page_table.n_entry);
-            phisical = page_table.first_free_paddr + pos*PAGE_SIZE;
-        }
-        else{
-            KASSERT(pos<page_table.first_free_paddr);
-            phisical = page_table.first_free_paddr + pos*PAGE_SIZE;
-            page_table.entries[pos].ctrl= SetValidityBitOne(page_table.entries[pos].ctrl);
-            page_table.entries[pos].page = KMALLOC_PAGE;
-            page_table.entries[pos].pid = curproc->p_pid;
-        }
-
-        page_table.contiguous[pos]=1;
-
-        return phisical;
-    }
 
     int i, j, first_pos=-1, valid, prec=0, old_val, first_it=0;
     vaddr_t old_vaddr;
@@ -355,6 +326,7 @@ paddr_t get_contiguous_pages(int n_pages, int spl){
 
     for ( i = 0; i < page_table.n_entry; i++)
     {
+         
         if (i!=0)
         {
             prec= valid_entry(page_table.entries[i-1].ctrl, page_table.entries[i-1].page);
@@ -453,15 +425,11 @@ paddr_t get_contiguous_pages(int n_pages, int spl){
                         {
                             page_table.entries[j].ctrl = SetIOBitOne(page_table.entries[j].ctrl);
                             
+                            remove_from_hash(old_vaddr, old_pid);
                             store_swap(old_vaddr,old_pid,j * PAGE_SIZE + page_table.first_free_paddr);
 
                             page_table.entries[j].ctrl = SetIOBitZero(page_table.entries[j].ctrl);
-                            lock_acquire(page_table.entries[j].entry_lock);
-                            cv_broadcast(page_table.entries[j].entry_cv, page_table.entries[j].entry_lock);
-                            lock_release(page_table.entries[j].entry_lock);
-                            lock_acquire(page_table.pt_lock);
-                            cv_broadcast(page_table.pt_cv, page_table.pt_lock);
-                            lock_release(page_table.pt_lock);
+                            
 
                         }
                         
@@ -483,10 +451,11 @@ paddr_t get_contiguous_pages(int n_pages, int spl){
             first_it++;
         }else{
             lock_acquire(page_table.pt_lock);
-            splx(spl);
+            
             cv_wait(page_table.pt_cv, page_table.pt_lock);
-            spl=splhigh();
+        
             lock_release(page_table.pt_lock);
+            first_it=0;
         }
         first_pos=-1;
         
@@ -505,8 +474,12 @@ void free_contiguous_pages(vaddr_t vaddr){
 
     DEBUG(DB_VM,"Process %d performs kfree for %d pages\n", curproc?curproc->p_pid:0,niter);
 
-    nkmalloc -= niter;
-    KASSERT(niter != -1);
+
+    #if OPT_DEBUG
+    nkmalloc-=niter;
+    KASSERT(niter!=-1);
+    #endif
+
 
     for (i = index; i < index + niter; i++)
     {
@@ -517,7 +490,19 @@ void free_contiguous_pages(vaddr_t vaddr){
 
     page_table.contiguous[index] = -1;
 
+
+    if(curthread->t_in_interrupt == false){
+        lock_acquire(page_table.pt_lock);
+        cv_broadcast(page_table.pt_cv,page_table.pt_lock); //Since we freed some pages, we wake up the processes waiting on the cv.
+        lock_release(page_table.pt_lock);
+    }
+    else{
+        cv_broadcast(page_table.pt_cv,page_table.pt_lock);
+    }
+
+    #if OPT_DEBUG
     DEBUG(DB_VM,"New kmalloc number after free=%d\n",nkmalloc);
+    #endif
 }
 
 void copy_pt_entries(pid_t old, pid_t new){
