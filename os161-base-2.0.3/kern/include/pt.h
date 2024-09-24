@@ -12,7 +12,7 @@
 
 int pt_active; // flag per sapere se la page table è attiva
 #if OPT_DEBUG
-int nkmalloc; //TODO: CLAPE
+int nkmalloc; 
 #endif
 
 /**
@@ -58,7 +58,6 @@ struct hash_table{
 
 /*
     lista dove sono memorizzati tutti i blocchi non utilizzati per la hash table
-*/
 */
 struct hash_entry *unused_ptr_list; 
 

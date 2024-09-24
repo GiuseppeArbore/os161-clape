@@ -33,8 +33,8 @@ options sfs			# Always use the file system
 
 #options dumbvm			# Chewing gum and baling wire.
 options test
-option sw_list
-option project 
-option debug
-option test
+options sw_list
+options project 
+options debug
+options test
 
