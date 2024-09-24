@@ -592,6 +592,14 @@ void hashtable_init(void)  {
     } 
 }
 
+int get_hash_func(vaddr_t v, pid_t p)
+{
+    int val = (((int)v) % 24) + ((((int)p) % 8) << 8);
+    val = val ^1234567891;
+    val = val % htable.size;
+    return val;
+}
+
 int get_index_from_hash(vaddr_t vad, pid_t pid){
     
     int val = get_hash_func(vad, pid);
@@ -676,3 +684,4 @@ void print_nkmalloc(void){
     kprintf("Final number of kmalloc: %d\n",nkmalloc);
 }
 #endif
+
