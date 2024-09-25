@@ -238,7 +238,7 @@ int as_is_ok(void){
 	else if(as->as_vbase1 == 0 || 
 		as->as_vbase2 == 0 ||
 		as->as_npages1 == 0 ||
-		as->as_npages2 == 0 ||
+		as->as_npages2 == 0 
 		){
 		return 0;
 	}
@@ -260,9 +260,9 @@ void vm_tlbshootdown(const struct tlbshootdown *ts){
 void vm_shutdown(void){
 
 	#if OPT_DEBUG
-	for (int i = 0; i < page_table->n_entry; i++)
+	for (int i = 0; i < page_table.n_entry; i++)
 	{
-		if (page_table->entries[i].ctrl!=0)
+		if (page_table.entries[i].ctrl!=0)
 		{
 			kprintf("Page %d is still in the page table\n",i); //TODO: CLAPE: capire bene se entry o page
 			/*
@@ -270,7 +270,7 @@ void vm_shutdown(void){
 
 			*/
 		}
-		if (page_table->entries[i].page==1)
+		if (page_table.entries[i].page==1)
 		{
 			kprintf("errore , capire bene cosa stampare\n"); //TODO: CLAPE
 			/*
@@ -282,6 +282,13 @@ void vm_shutdown(void){
 	stats_print();
 }
 
+static paddr_t getppages(unsigned long n_pages){
+	paddr_t addr;
+
+	addr = ram_stealmem(n_pages);
+
+	return addr;
+}
 
 vaddr_t alloc_kpages(unsigned n_pages){
 	int spl = splhigh();
@@ -297,7 +304,7 @@ vaddr_t alloc_kpages(unsigned n_pages){
 		nkmalloc+=n_pages;
 		#endif
 		spinlock_release(&stealmem_lock);
-		paddr = get_contiguous_pages(n_pages, spl);
+		paddr = get_contiguous_pages(n_pages);
 		spinlock_acquire(&stealmem_lock);
 	}
 
@@ -305,7 +312,7 @@ vaddr_t alloc_kpages(unsigned n_pages){
 
 	splx(spl);
 
-	KASSERT(PADDR_TO_KVADDR(p)>0x80000000 && PADDR_TO_KVADDR(p)<=0x90000000);
+	KASSERT(PADDR_TO_KVADDR(paddr)>0x80000000 && PADDR_TO_KVADDR(paddr)<=0x9FFFFFFF);
 
 
 	return PADDR_TO_KVADDR(paddr);
@@ -319,9 +326,9 @@ void free_kpages(vaddr_t addr){
 
 	spinlock_acquire(&stealmem_lock);
 
-	if (pt_active && addr>=PADDR_TO_KVADDR(page_table->firstfreepaddr)){
+	if (pt_active && addr>=PADDR_TO_KVADDR(page_table.first_free_paddr)){
 		spinlock_release(&stealmem_lock);
-		free_contiguous_pages(paddr, spl);
+		free_contiguous_pages(paddr);
 		spinlock_acquire(&stealmem_lock);
 	}
 
@@ -330,19 +337,9 @@ void free_kpages(vaddr_t addr){
 	splx(spl);
 }
 
-void address_space_init(void){
+void addrspace_init(void){
 	spinlock_init(&stealmem_lock); //todo: importare stealmem_lock
 	pt_active=0;
 }
 
-static paddr_t getppages(unsigned long n_pages){
-	paddr_t addr;
 
-	addr = ram_stealmem(n_pages);
-
-	return addr;
-}
-
-void create_sem_fork(void){
-	sem_fork = sem_create("sem_fork",1);
-}

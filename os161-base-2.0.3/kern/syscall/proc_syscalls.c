@@ -44,10 +44,10 @@ sys__exit(int status)
   p->p_status = status & 0xff; /* just lower 8 bits returned */
   proc_remthread(curthread);
 
-  lock_acquire(p->lock);
+  lock_acquire(p->p_lock_cv);
   p->ended=1; //Used since, otherwise, if the child ends before the parent waits for him, the parent will never be woken up
-  cv_signal(p->p_cv, p->lock);
-  lock_release(p->lock);
+  cv_signal(p->p_cv, p->p_lock_cv);
+  lock_release(p->p_lock_cv);
   splx(spl);
   DEBUG(DB_VM,"process %d signaled end/n", curproc->p_pid);
   thread_exit();

@@ -108,7 +108,7 @@ int load_swap(vaddr_t vaddr, pid_t pid, paddr_t paddr){
                 
                 DEBUG(DB_VM,"CARICAMENTO SWAP in 0x%x (virtuale: 0x%x) per il processo %d\n",list->offset, vaddr, pid);
 
-                add_page_fault(DISK_FAULT)//Aggiorno le statistiche
+                add_page_fault(DISK_FAULT);//Aggiorno le statistiche
 
                 uio_kinit(&iov,&ku,(void*)PADDR_TO_KVADDR(paddr),PAGE_SIZE,list->offset,UIO_READ);//Di nuovo usiamo paddr come se fosse un indirizzo fisico del kernel per evitare una ricorsione di fault
 

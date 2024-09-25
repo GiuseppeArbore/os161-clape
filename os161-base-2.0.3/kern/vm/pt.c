@@ -12,9 +12,12 @@
 #define SetIOBitOne(x) (x | 8)
 #define SetSwapBitOne(x) (x | 16)
 
+#define SetValidityBitZero(x) (x & ~1)
 #define SetReferenceBitZero(x) (x & ~2)
 #define SetTlbBitZero(x) (x & ~4)
 #define SetIOBitZero(x) (x & ~8)
+#define SetSwapBitZero(x) (x & ~16)
+
 
 #include "pt.h"
 #include "vmstats.h"
@@ -106,7 +109,7 @@ static int findspace() {
 static int n=0;
 #endif
 
-int find_victim(vaddr_t vaddr, pid_t pid, int s){
+int find_victim(vaddr_t vaddr, pid_t pid){
     int i, start_index=lastIndex;
     int n_iter=0;
     int old_validity=0;
@@ -181,7 +184,7 @@ int find_victim(vaddr_t vaddr, pid_t pid, int s){
 /*
 * funzione per ottenere l'indirizzo fisico di un indirizzo logico
 */
-paddr_t pt_get_paddr(vaddr_t vaddr, pid_t pid){
+int pt_get_paddr(vaddr_t vaddr, pid_t pid){
 
     int i = get_index_from_hash(vaddr, pid);
     if (i == -1){
@@ -204,7 +207,7 @@ paddr_t get_page(vaddr_t v){
     pid_t pid = proc_getpid(curproc); // pid corrente
     int res;
     paddr_t phisical;
-    res = pt_get_paddr(v, pid, spl);
+    res = pt_get_paddr(v, pid);
 
     if (res != -1)
     {
@@ -311,12 +314,12 @@ static int nfork=0;
 #endif
 
 
-paddr_t get_contiguous_pages(int n_pages ){
+paddr_t get_contiguous_pages(int n_pages){
 
-    DEBUG(DB_VM,"Process %d performs kmalloc for %d pages\n", curproc->p_pid,npages);
+    DEBUG(DB_VM,"Process %d performs kmalloc for %d pages\n", curproc->p_pid,n_pages);
 
 
-    int i, j, first_pos=-1, valid, prec=0, old_val, first_it=0;
+    int i, j, first_pos=-1, prec=0, old_val, first_it=0;
     vaddr_t old_vaddr;
     pid_t old_pid;
 
@@ -347,11 +350,11 @@ paddr_t get_contiguous_pages(int n_pages ){
             ! GetSwapBit(page_table.entries[i].ctrl) &&
             page_table.entries[i].page!=KMALLOC_PAGE && 
             ! GetIOBit(page_table.entries[i].ctrl) &&
-            i-first_pos==n_pages-1;
+            i-first_pos==n_pages-1
         )
         {
             //se ho trovato tutte le pagine contigue che mi servivano
-            DEBUG(DB_VM,"Kmalloc for process %d entry%d\n",curproc->p_pid,first);
+            DEBUG(DB_VM,"Kmalloc for process %d entry%d\n",curproc->p_pid,first_pos);
             for (j=first_pos; j<=i; j++){
                 KASSERT(page_table.entries[i].page!=KMALLOC_PAGE);
                 KASSERT(!GetValidityBit(page_table.entries[j].ctrl));
@@ -573,21 +576,21 @@ void prepare_copy_pt(pid_t pid){
 void hashtable_init(void)  {
     htable.size= 2 *page_table.n_entry;
 
-    htable.table = kmalloc(sizeof(struct hentry *) * htable.size);
+    htable.table = kmalloc(sizeof(struct hash_entry *) * htable.size);
     for (int i =0; i < htable.size; i++){
         htable.table[i] = NULL; //nessun puntatore all'interno dell'array di liste
     }
 
     unused_ptr_list = NULL;
-    struct hashentry *tmp;
+    struct hash_entry *tmp;
     for (int j = 0; j < page_table.n_entry; j++){ //iniziallizo unused ptr list
-        tmp = kmalloc(sizeof(struct hashentry));
+        tmp = kmalloc(sizeof(struct hash_entry));
         KASSERT((unsigned int)tmp>0x80000000);
         if (!tmp)
         {
             panic("Error during hashpt elements allocation");
         }
-        tmp->next = unusedptrlist;
+        tmp->next = unused_ptr_list;
         unused_ptr_list = tmp;
     } 
 }
@@ -603,7 +606,7 @@ int get_hash_func(vaddr_t v, pid_t p)
 int get_index_from_hash(vaddr_t vad, pid_t pid){
     
     int val = get_hash_func(vad, pid);
-    struct hashentry *tmp = htable.table[val];
+    struct hash_entry *tmp = htable.table[val];
     #if OPT_DEBUG
     if(tmp!=NULL)
         kprintf("Value of tmp: 0x%x, pid=%d\n",tmp->vad,tmp->pid);
@@ -622,7 +625,7 @@ int get_index_from_hash(vaddr_t vad, pid_t pid){
 
 void add_in_hash(vaddr_t vad, pid_t pid, int ipt_entry){
     int val = get_hash_func(vad, pid);
-    struct hashentry *tmp = unused_ptr_list;
+    struct hash_entry *tmp = unused_ptr_list;
     unused_ptr_list = unused_ptr_list->next;
     tmp->vad = vad;
     tmp->pid = pid;
@@ -632,7 +635,7 @@ void add_in_hash(vaddr_t vad, pid_t pid, int ipt_entry){
 }
 
 #if OPT_DEBUG
-static int rem=0
+static int rem=0;
 #endif
 
 void remove_from_hash(vaddr_t v, pid_t pid){

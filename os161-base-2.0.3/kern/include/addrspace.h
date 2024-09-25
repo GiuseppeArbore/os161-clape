@@ -133,7 +133,7 @@ struct addrspace *as_create(void);
 #if OPT_DUMBVM
 int               as_copy(struct addrspace *old, struct addrspace **ret);
 #else
-int               as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid, int spl);
+int               as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid);
 #endif
 void              as_activate(void);
 void              as_deactivate(void);
@@ -166,5 +166,6 @@ void vm_tlbshootdown(const struct tlbshootdown *);
 vaddr_t alloc_kpages(unsigned n_pages);
 void free_kpages(vaddr_t addr);
 void addrspace_init(void);
+
 
 #endif /* _ADDRSPACE_H_ */

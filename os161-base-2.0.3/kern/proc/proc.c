@@ -103,7 +103,7 @@ proc_init_waitpid(struct proc *proc, const char *name) {
   }
   proc->p_status = 0;
   proc->p_cv = cv_create(name);
-  proc->p_lock = lock_create(name);
+  proc->p_lock_cv = lock_create(name);
 }
 
 /*
@@ -121,7 +121,7 @@ proc_end_waitpid(struct proc *proc) {
   spinlock_release(&processTable.lock);
 
   cv_destroy(proc->p_cv);
-  lock_destroy(proc->p_lock);
+  lock_destroy(proc->p_lock_cv);
 }
 
 
@@ -413,11 +413,11 @@ proc_wait(struct proc *proc)
 	KASSERT(proc != kproc);
 
 	/* wait on semaphore or condition variable */ 
-	lock_acquire(proc->p_lock);
+	lock_acquire(proc->p_lock_cv);
 	while(!proc->ended){ //Used to avoid starvation/deadlocks
-		cv_wait(proc->p_cv, proc->p_lock);
+		cv_wait(proc->p_cv, proc->p_lock_cv);
 	}
-	lock_release(proc->p_lock);
+	lock_release(proc->p_lock_cv);
 	return_status = proc->p_status;
 	proc_destroy(proc);
 	return return_status;

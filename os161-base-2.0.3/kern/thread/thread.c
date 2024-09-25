@@ -1183,7 +1183,7 @@ interprocessor_interrupt(void)
 	}
 	if (bits & (1U << IPI_OFFLINE)) {
 		/* offline request */
-		spinlock_release(&curcpu->c_ipi_lock);os
+		spinlock_release(&curcpu->c_ipi_lock);
 		spinlock_acquire(&curcpu->c_runqueue_lock);
 		if (!curcpu->c_isidle) {
 			kprintf("cpu%d: offline: warning: not idle\n",

@@ -10,7 +10,7 @@
 
 
 static int nframes=0; // numero di frame fisici
-static int bitmapFreeFrames_active = 0; // flag per sapere se la bitmap è attiva
+static int bitmapFreeFramesActive = 0; // flag per sapere se la bitmap è attiva
 /*
 * definisco spinlock per la bitmap
 */
@@ -39,7 +39,7 @@ void bitmap_init(void){
 /*
 * Funzione per distruggere la bitmap
 */
-void bitmap_destroy(void){
+void destroy_bitmap(void){
     spinlock_acquire(&bitmapLock); // acquisisce il lock
     bitmapFreeFramesActive = 0; // disattiva la bitmap
     spinlock_release(&bitmapLock); // rilascia il lock
