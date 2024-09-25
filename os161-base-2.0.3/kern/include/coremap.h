@@ -31,7 +31,7 @@ void bitmap_init(void);
 /*
 * funzione usata per distruggere la bitmap
 */
-void bitmap_destroy(void);
+void destroy_bitmap(void);
 
 /*
 * funzione usata per sapere se la bitmap è attiva
