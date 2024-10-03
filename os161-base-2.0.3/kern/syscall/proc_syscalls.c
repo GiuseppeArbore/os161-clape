@@ -35,8 +35,8 @@ sys__exit(int status)
   struct proc *p = curproc;
 
   #if OPT_PROJECT
-  free_pages(p->p_pid);
   remove_process_from_swap(p->p_pid);
+  free_pages(p->p_pid);
   #endif
 
   DEBUG(DB_VM,"Process %d ending\n",curproc->p_pid);
