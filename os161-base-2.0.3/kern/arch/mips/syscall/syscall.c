@@ -34,8 +34,8 @@
 #include <mips/trapframe.h>
 #include <current.h>
 #include <syscall.h>
-
-//TODO: CLAPE: aggiunge l'include della funzione opt-fork
+#include <addrspace.h>
+#include "opt-fork.h"
 
 
 /*
