@@ -247,9 +247,11 @@ int as_is_ok(void){
 
 
 void vm_bootstrap(void){
-	swap_init();
+	
 	pt_init();
+	swap_init();
 	hashtable_init();
+	
 }
 
 void vm_tlbshootdown(const struct tlbshootdown *ts){
@@ -311,6 +313,7 @@ vaddr_t alloc_kpages(unsigned n_pages){
 	spinlock_release(&stealmem_lock);
 
 	splx(spl);
+	
 
 	KASSERT(PADDR_TO_KVADDR(paddr)>0x80000000 && PADDR_TO_KVADDR(paddr)<=0x9FFFFFFF);
 
@@ -342,4 +345,9 @@ void addrspace_init(void){
 	pt_active=0;
 }
 
+void create_sem_fork(void) {
+	sem_fork= sem_create("sem_fork", 1);
+}
+
+s
 
