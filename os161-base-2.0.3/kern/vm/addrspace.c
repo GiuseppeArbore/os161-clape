@@ -349,5 +349,5 @@ void create_sem_fork(void) {
 	sem_fork= sem_create("sem_fork", 1);
 }
 
-s
+
 
