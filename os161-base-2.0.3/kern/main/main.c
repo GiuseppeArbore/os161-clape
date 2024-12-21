@@ -50,9 +50,8 @@
 #include <test.h>
 #include <version.h>
 #include "autoconf.h"  // for pseudoconfig
-#include "hello.h"
-#include "opt-hello.h"
 #include "opt-dumbvm.h"
+
 
 
 #if !OPT_DUMBVM
