@@ -166,6 +166,7 @@ void vm_tlbshootdown(const struct tlbshootdown *);
 vaddr_t alloc_kpages(unsigned n_pages);
 void free_kpages(vaddr_t addr);
 void addrspace_init(void);
+void create_sem_fork(void);
 
 
 #endif /* _ADDRSPACE_H_ */
