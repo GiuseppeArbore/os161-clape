@@ -782,13 +782,11 @@ thread_exit(void)
 
 	cur = curthread;
 
-	struct proc *p = curproc; //CLAPE added
-
 	/*
 	 * Detach from our process. You might need to move this action
 	 * around, depending on how your wait/exit works.
 	 */
-	if(p!=NULL){
+	if(cur->t_proc != NULL){
 		proc_remthread(cur);
 	}
 
@@ -799,7 +797,7 @@ thread_exit(void)
 	thread_checkstack(cur);
 
 	/* Interrupts off on this processor */
-    splhigh();
+        splhigh();
 	thread_switch(S_ZOMBIE, NULL, NULL);
 	panic("braaaaaaaiiiiiiiiiiinssssss\n");
 }
