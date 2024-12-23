@@ -60,13 +60,6 @@
 #include <vnode.h>
 #include <elf.h>
 
-#include <segments.h>
-#include <opt-test.h>
-
-#if OPT_TEST
-#include "swapfile.h"
-#endif
-
 /*
  * Load a segment at virtual address VADDR. The segment in memory
  * extends from VADDR up to (but not including) VADDR+MEMSIZE. The
@@ -81,8 +74,7 @@
  * change this code to not use uiomove, be sure to check for this case
  * explicitly.
  */
-
-#if OPT_DUMBVM && !OPT_TEST
+#if OPT_DUMBVM
 static
 int
 load_segment(struct addrspace *as, struct vnode *v,
@@ -170,12 +162,8 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 	struct uio ku;
 	struct addrspace *as;
 
-	#if OPT_TEST && OPT_DUMBVM
-	paddr_t paddr=0;
-	#endif
-
 	as = proc_getas();
-	as->v = v;
+	as->v = v; 
 
 	/*
 	 * Read the executable header from offset 0 in the file.
@@ -194,7 +182,7 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 	}
 
 	#if !OPT_DUMBVM
-		as->v = v;
+	as->v = v;
 	#endif
 
 	/*
@@ -309,28 +297,6 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 			return ENOEXEC;
 		}
 
-
-		#if OPT_TEST
-
-		if(i==1){
-			paddr = as->as_pbase1;
-			as->ph1 = ph;
-			for(size_t j=0;j<as->as_npages1; j++){
-				load_page(as->ph1.p_vaddr,0,paddr);
-				paddr+=PAGE_SIZE;
-			}
-		}
-		if(i==2){
-			paddr = as->as_pbase2;
-			as->ph2 = ph;
-			for(size_t j=0;j<as->as_npages2; j++){
-				load_page(as->ph2.p_vaddr,0,paddr);
-				paddr+=PAGE_SIZE;
-			}
-		}
-
-		#else
-
 		result = load_segment(as, v, ph.p_offset, ph.p_vaddr,
 				      ph.p_memsz, ph.p_filesz,
 				      ph.p_flags & PF_X);
@@ -338,7 +304,6 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 			return result;
 		}
 
-		#endif
 	}
 
 	result = as_complete_load(as);
@@ -374,11 +339,13 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 			return ENOEXEC;
 		}
 
+		//save the program header for both the segments
+
 		if(i==1){
-			as->ph1 = ph;
+			as->ph1 = ph; //prog_head_text
 		}
 		if(i==2){
-			as->ph2 = ph;
+			as->ph2 = ph; //prog_head_data 
 		}
 	}
 	#endif
