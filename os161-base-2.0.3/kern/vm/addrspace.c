@@ -33,8 +33,16 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <proc.h>
+#include "pt.h"
+#include "current.h"
 #include "spl.h"
+#include "mips/tlb.h"
+#include <cpu.h>
 #include "vm_tlb.h"
+#include "vmstats.h"
+#include "vfs.h"
+#include "vnode.h"
+#include "swapfile.h"
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
@@ -69,35 +77,45 @@ int as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t 
 		return ENOMEM;
 	}
 
+	//Assegno il vecchio al nuovo addrespace
 	newas->as_vbase1 = old->as_vbase1;
 	newas->as_npages1 = old->as_npages1;
 	newas->as_vbase2 = old->as_vbase2;
 	newas->as_npages2 = old->as_npages2;
+
+	//Copio gli header: text e data
 	newas->ph1 = old->ph1;
 	newas->ph2 = old->ph2;
+
+	//Copio il vnode relativo al file di ELF
 	newas->v = old->v;
-	old->v->vn_refcount++;
+
+	//incremento contatore dei riferimenti perchè file in possesso di un altro processo
+	old->v->vn_refcount++;	
 	newas->initial_offset1 = old->initial_offset1;
 	newas->initial_offset2 = old->initial_offset2;
 
 	prepare_copy_pt(old_pid);
 	copy_swap_pages(new_pid, old_pid);
 	copy_pt_entries(old_pid, new_pid);
-	end_copy_pt(old_pid);
+	end_copy_pt(old_pid);			
 
 	*ret = newas;
 	return 0;
 }
 
+/*
+* se c'è solo un processo che usa il file, chiudo ELF file; altrimenti decremento
+*/
 void
 as_destroy(struct addrspace *as)
 {
 
-	if(as->v->vn_refcount==1){
-		vfs_close(as->v);
+	if(as->v->vn_refcount==1){	
+		vfs_close(as->v); 	
 	}
 	else{
-		as->v->vn_refcount--;
+		as->v->vn_refcount--; 
 	}
 
 	kfree(as);
@@ -162,8 +180,7 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	memsize = (memsize + initial_offset + PAGE_SIZE - 1) & PAGE_FRAME;
 	npages = memsize / PAGE_SIZE;
 
-
-	//CLAPE: Non le stiamo usando, capire che farci
+	//Non le stiamo usando, capire che farci, controllo per pagine readonly direttamente controllando il vrtual address
 	(void)readable;
 	(void)writeable;
 	(void)executable;
@@ -212,8 +229,8 @@ as_complete_load(struct addrspace *as)
 	 * Write this.
 	 */
 
-	(void)as;
-	return 0;
+    (void)as;
+    return 0;
 }
 
 int
@@ -223,7 +240,7 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	(void)as;
 
 	/* Initial user-level stack pointer */
-	*stackptr = USERSTACK;
+	*stackptr = USERSTACK;					
 
 	return 0;
 }
@@ -247,11 +264,12 @@ int as_is_ok(void){
 
 
 void vm_bootstrap(void){
-	
+
 	pt_init();
 	swap_init();
 	hashtable_init();
-	
+
+	//todo: inizializzare le statistiche
 }
 
 void vm_tlbshootdown(const struct tlbshootdown *ts){
@@ -261,26 +279,6 @@ void vm_tlbshootdown(const struct tlbshootdown *ts){
 
 void vm_shutdown(void){
 
-	#if OPT_DEBUG
-	for (int i = 0; i < page_table.n_entry; i++)
-	{
-		if (page_table.entries[i].ctrl!=0)
-		{
-			kprintf("Page %d is still in the page table\n",i); //TODO: CLAPE: capire bene se entry o page
-			/*
-				kprintf("Entry%d has not been freed! ctl=%d, pid=%d\n",i,peps.pt[i].ctl,peps.pt[i].pid);
-
-			*/
-		}
-		if (page_table.entries[i].page==1)
-		{
-			kprintf("errore , capire bene cosa stampare\n"); //TODO: CLAPE
-			/*
-				kprintf("It looks like some errors with free occurred: entry%d, process %d\n",i,peps.pt[i].pid);
-			*/
-		}		
-	}
-	#endif
 	stats_print();
 }
 
@@ -302,14 +300,14 @@ vaddr_t alloc_kpages(unsigned n_pages){
 		paddr = getppages(n_pages);
 	}
 	else {
-		#if OPT_DEBUG
-		nkmalloc+=n_pages;
-		#endif
 		spinlock_release(&stealmem_lock);
 		paddr = get_contiguous_pages(n_pages);
 		spinlock_acquire(&stealmem_lock);
 	}
-
+	
+	if (paddr==0) { //clape
+		return 0;
+	}
 	spinlock_release(&stealmem_lock);
 
 	splx(spl);

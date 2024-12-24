@@ -68,8 +68,8 @@ struct addrspace {
         paddr_t as_pbase2;
         size_t as_npages2;
         paddr_t as_stackpbase;
-        Elf_Phdr ph1;
-        Elf_Phdr ph2;
+        Elf_Phdr ph1; //Program header of the text section
+        Elf_Phdr ph2;   //Program header of the data section
         struct vnode *v;
 #else
         vaddr_t as_vbase1;
