@@ -33,16 +33,13 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <proc.h>
-#include "pt.h"
 #include "current.h"
 #include "spl.h"
 #include "mips/tlb.h"
 #include <cpu.h>
-#include "vm_tlb.h"
 #include "vmstats.h"
 #include "vfs.h"
 #include "vnode.h"
-#include "swapfile.h"
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
