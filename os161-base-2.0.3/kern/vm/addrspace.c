@@ -247,9 +247,9 @@ int as_is_ok(void){
 
 
 void vm_bootstrap(void){
-	
-	pt_init();
+
 	swap_init();
+	pt_init();
 	hashtable_init();
 	
 }
