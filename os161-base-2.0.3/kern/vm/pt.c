@@ -468,9 +468,9 @@ paddr_t get_contiguous_pages(int n_pages){
 }
 
 
-void free_contiguous_pages(vaddr_t vaddr){
+void free_contiguous_pages(vaddr_t addr){
     int i, index, niter;
-    paddr_t p = KVADDR_TO_PADDR(vaddr);
+    paddr_t p = KVADDR_TO_PADDR(addr);
     index = (p - page_table.first_free_paddr) / PAGE_SIZE;
     niter = page_table.contiguous[index];
 

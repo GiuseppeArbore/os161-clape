@@ -325,7 +325,7 @@ void free_kpages(vaddr_t addr){
 
 	int spl = splhigh();
 	
-	paddr_t paddr = KVADDR_TO_PADDR(addr);
+	//paddr_t paddr = KVADDR_TO_PADDR(addr);
 
 	spinlock_acquire(&stealmem_lock);
 
