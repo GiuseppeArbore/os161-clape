@@ -331,7 +331,7 @@ void free_kpages(vaddr_t addr){
 
 	if (pt_active && addr>=PADDR_TO_KVADDR(page_table.first_free_paddr)){
 		spinlock_release(&stealmem_lock);
-		free_contiguous_pages(paddr);
+		free_contiguous_pages(addr);
 		spinlock_acquire(&stealmem_lock);
 	}
 
