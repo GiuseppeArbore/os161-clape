@@ -47,6 +47,7 @@ struct vnode;
 
 #if !OPT_DUMBVM
 struct spinlock stealmem_lock;
+struct semaphore *sem_fork;
 #endif
 
 #define DUMBVM_STACKPAGES    18
