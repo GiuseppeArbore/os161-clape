@@ -37,6 +37,6 @@ options sw_list
 
 options project 
 #options debug
-#options fork
+options fork
 
 
