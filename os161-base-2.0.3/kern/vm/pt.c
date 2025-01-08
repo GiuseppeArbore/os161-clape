@@ -625,7 +625,6 @@ int get_index_from_hash(vaddr_t vad, pid_t pid){
 
 void add_in_hash(vaddr_t vad, pid_t pid, int ipt_entry){
     int val = get_hash_func(vad, pid);
-    //kprintf("Voglio mettere in hash 0x%x per il processo %d, pos %d\n", vad, pid, val);
     struct hash_entry *tmp = unused_ptr_list;
     
     KASSERT(tmp!=NULL);
@@ -638,7 +637,6 @@ void add_in_hash(vaddr_t vad, pid_t pid, int ipt_entry){
     tmp->next = htable.table[val];
 
     htable.table[val] = tmp;
-    //kprintf("Aggiunto in hash 0x%x per il processo %d, pos %d\n\n", vad, pid, val);
 }
 
 #if OPT_DEBUG
@@ -651,8 +649,7 @@ void remove_from_hash(vaddr_t v, pid_t pid){
     #endif
 
     int val =  get_hash_func(v, pid);
-    //DEBUG(DB_VM, "Rimuovo da hash 0x%x per il processo %d, pos %d\n", v, pid, val);
-    //kprintf("vorrei rimuovere da hash 0x%x per il processo %d, pos %d\n", v, pid, val);
+    DEBUG(DB_VM, "Rimuovo da hash 0x%x per il processo %d, pos %d\n", v, pid, val);
 
     struct hash_entry *tmp = htable.table[val];
     struct hash_entry *prev = NULL;
@@ -667,7 +664,6 @@ void remove_from_hash(vaddr_t v, pid_t pid){
         htable.table[val] = tmp->next;
         tmp->next = unused_ptr_list;
         unused_ptr_list = tmp;
-        //kprintf("RIMOSSO UNO: 0x%x per il processo %d, pos %d\n\n", v, pid, val);
 
         return;
     }
@@ -683,7 +679,6 @@ void remove_from_hash(vaddr_t v, pid_t pid){
             prev->next = tmp->next;
             tmp->next = unused_ptr_list;
             unused_ptr_list = tmp;
-            //kprintf("RIMOSSO DUE: 0x%x per il processo %d, pos %d\n\n", v, pid, val);
             return;
         }
         prev = tmp;
