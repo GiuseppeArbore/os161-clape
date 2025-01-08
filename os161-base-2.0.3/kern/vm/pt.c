@@ -356,7 +356,7 @@ paddr_t get_contiguous_pages(int n_pages){
             //se ho trovato tutte le pagine contigue che mi servivano
             DEBUG(DB_VM,"Kmalloc for process %d entry%d\n",curproc->p_pid,first_pos);
             for (j=first_pos; j<=i; j++){
-                KASSERT(page_table.entries[i].page!=KMALLOC_PAGE);
+                KASSERT(page_table.entries[j].page!=KMALLOC_PAGE);
                 KASSERT(!GetValidityBit(page_table.entries[j].ctrl));
                 KASSERT(!GetTlbBit(page_table.entries[j].ctrl));
                 KASSERT(!GetIOBit(page_table.entries[j].ctrl));
@@ -410,7 +410,7 @@ paddr_t get_contiguous_pages(int n_pages){
                     DEBUG(DB_VM,"Found a space for a kmalloc for process %d entry%d\n",curproc->p_pid,first_pos);
                     for(j=first_pos; j<=i; j++){
                         KASSERT(page_table.entries[j].page != KMALLOC_PAGE);
-                        KASSERT(!GetValidityBit(page_table.entries[j].ctrl));
+                        KASSERT(!GetValidityBit(page_table.entries[j].ctrl) || !GetReferenceBit(page_table.entries[j].ctrl));
                         KASSERT(!GetTlbBit(page_table.entries[j].ctrl));
                         KASSERT(!GetIOBit(page_table.entries[j].ctrl));
                         KASSERT(!GetSwapBit(page_table.entries[j].ctrl));
@@ -533,10 +533,10 @@ void copy_pt_entries(pid_t old, pid_t new){
 
                 memmove((void*)PADDR_TO_KVADDR(page_table.first_free_paddr+ pos*PAGE_SIZE),(void *)PADDR_TO_KVADDR(page_table.first_free_paddr + i*PAGE_SIZE), PAGE_SIZE);
                 
-                KASSERT(!GetIOBit(page_table.entries[i].ctrl));
-                KASSERT(!GetSwapBit(page_table.entries[i].ctrl));
-                KASSERT(!GetTlbBit(page_table.entries[i].ctrl));
-                KASSERT(page_table.entries[i].page != KMALLOC_PAGE);
+                KASSERT(!GetIOBit(page_table.entries[pos].ctrl));
+                KASSERT(!GetSwapBit(page_table.entries[pos].ctrl));
+                KASSERT(!GetTlbBit(page_table.entries[pos].ctrl));
+                KASSERT(page_table.entries[pos].page != KMALLOC_PAGE);
 
             }
         }
@@ -625,7 +625,7 @@ int get_index_from_hash(vaddr_t vad, pid_t pid){
 
 void add_in_hash(vaddr_t vad, pid_t pid, int ipt_entry){
     int val = get_hash_func(vad, pid);
-    kprintf("Voglio mettere in hash 0x%x per il processo %d, pos %d\n", vad, pid, val);
+    //kprintf("Voglio mettere in hash 0x%x per il processo %d, pos %d\n", vad, pid, val);
     struct hash_entry *tmp = unused_ptr_list;
     
     KASSERT(tmp!=NULL);
@@ -638,7 +638,7 @@ void add_in_hash(vaddr_t vad, pid_t pid, int ipt_entry){
     tmp->next = htable.table[val];
 
     htable.table[val] = tmp;
-    kprintf("Aggiunto in hash 0x%x per il processo %d, pos %d\n\n", vad, pid, val);
+    //kprintf("Aggiunto in hash 0x%x per il processo %d, pos %d\n\n", vad, pid, val);
 }
 
 #if OPT_DEBUG
@@ -652,7 +652,7 @@ void remove_from_hash(vaddr_t v, pid_t pid){
 
     int val =  get_hash_func(v, pid);
     //DEBUG(DB_VM, "Rimuovo da hash 0x%x per il processo %d, pos %d\n", v, pid, val);
-    kprintf("vorrei rimuovere da hash 0x%x per il processo %d, pos %d\n", v, pid, val);
+    //kprintf("vorrei rimuovere da hash 0x%x per il processo %d, pos %d\n", v, pid, val);
 
     struct hash_entry *tmp = htable.table[val];
     struct hash_entry *prev = NULL;
@@ -667,7 +667,7 @@ void remove_from_hash(vaddr_t v, pid_t pid){
         htable.table[val] = tmp->next;
         tmp->next = unused_ptr_list;
         unused_ptr_list = tmp;
-        kprintf("RIMOSSO UNO: 0x%x per il processo %d, pos %d\n\n", v, pid, val);
+        //kprintf("RIMOSSO UNO: 0x%x per il processo %d, pos %d\n\n", v, pid, val);
 
         return;
     }
@@ -683,7 +683,7 @@ void remove_from_hash(vaddr_t v, pid_t pid){
             prev->next = tmp->next;
             tmp->next = unused_ptr_list;
             unused_ptr_list = tmp;
-            kprintf("RIMOSSO DUE: 0x%x per il processo %d, pos %d\n\n", v, pid, val);
+            //kprintf("RIMOSSO DUE: 0x%x per il processo %d, pos %d\n\n", v, pid, val);
             return;
         }
         prev = tmp;

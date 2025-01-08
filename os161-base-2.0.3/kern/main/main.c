@@ -135,9 +135,11 @@ boot(void)
 	kheap_nextgeneration();
 
 	/* Late phase of initialization. */
-	#if OPT_PROJECT
+	#if !OPT_DUMBVM
 	create_sem_fork();
 	#endif
+	
+
 	vm_bootstrap();
 	kprintf_bootstrap();
 	thread_start_cpus();
