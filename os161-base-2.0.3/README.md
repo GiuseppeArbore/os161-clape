@@ -20,7 +20,7 @@ Per una miglior coordinazione si è usata una repository condivisa su GitHub e u
 
 ### Address space (g1):
 L'address space è diviso in due segmenti: data e stack.
-__Struttura dati__
+####Struttura dati
 ```
 struct addrspace {
         vaddr_t as_vbase1;
@@ -37,7 +37,7 @@ struct addrspace {
 ```
 
 
-__Implementazione__
+#### Implementazione
 Le funzioni presenti in [addrespace.c](./kern/vm/addrespace.c) sono funzioni per creare, gestire e distruggerre l'addrespace.
 Le loro definizioni vengono fatte in [addrespace.h](./kern/include/addrspace.h)
 ```
@@ -53,12 +53,12 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 
 ```
 
-___Creazione e distruzione___
+#### Creazione e distruzione
 as_create - create a new empty address space.
 
 as_destroy - dispose of an address space.
 
-___Copia e attivazione___
+#### Copia e attivazione
 as_copy   - create a new address space that is an exact copy of an old one. 
 ___Probably calls as_create to get a new empty address space and fill it in, but that's up to you.__
 
@@ -67,19 +67,19 @@ as_activate - make curproc's address space the one currently "seen" by the proce
  as_deactivate - unload curproc's address space so it isn't currently "seen" by the processor. This is used to avoid potentially "seeing" it while it's being destroyed.
 
 
-___Define___
+#### Define
 as_define_region - set up a region of memory within the address space.
 
 as_define_stack - set up the stack region in the address space.          (Normally called *after* as_complete_load().) Hands back the initial stack pointer for the new process.
 
-___Load___
+#### Load
 as_prepare_load - this is called before actually loading from an executable into the address space.
 
 as_complete_load - this is called when loading from an executable is complete.
 
 ### Page table (g1):
 La page table èn strutturata nel seguente modo:
-__Struttura dati__
+#### Struttura dati
 ```
 struct pt_info{
     struct pt_entry *entries; // array di pt_entry (IPT) 
@@ -100,14 +100,14 @@ struct pt_entry {
 ```
 
 
-__Implementazione__
+#### Implementazione
 Le funzioni preseneti in [pt.c](./kern/vm/pt.c)
 Queste funzioni vengono definite in [pt.h](./kern/include/pt.h) e servono a inizializzare, effettuare conversioni di indirizzi
 
-___Creazione___
+#### Creazione
 void pt_init(void);
 
-___Copia___
+#### Copia
 
 void copy_pt_entries(pid_t, pid_t); copiare all'interno della PT o del file di swap tutte le pagine del vecchio pid per il nuovo
 
@@ -116,7 +116,7 @@ void prepare_copy_pt(pid_t); setta a uno tutti i bit SWAP relativi al pid passat
 void end_copy_pt(pid_t); setta a zero tutti i bit SWAP relativi al pid passato
 
 
-___Gestione pagine___
+#### Gestione pagine
 paddr_t get_page(vaddr_t); funzione per ottenere la pagina, a sua volta chiama pt_get_paddr o findspace per cercare spazio libero nella page table
 
 paddr_t pt_load_page(vaddr_t, pid_t); carica una nuova pagina dall'elf file. Se la page table è piena, seleziona la pagina da rimuovere usando l'algoritmo second-chance e lo salva nell swap file.
@@ -125,25 +125,25 @@ paddr_t pt_load_page(vaddr_t, pid_t); carica una nuova pagina dall'elf file. Se 
 void free_pages(pid_t); rimuove tutte le pagine associate ad un processo quando termina
 
 
-___Gestione pagine contigue___
+#### Gestione pagine contigue
 paddr_t get_contiguous_pages(int);  inserire nella IPT della memoria kernel in modo contiguo
 
 
 void free_contiguous_pages(vaddr_t); liberare lo pagine contigue allocate nella ipt
 
 
-___Ricerca vittima___
+#### Ricerca vittima
 int find_victim(vaddr_t, pid_t);
 
-___Traduzione di indirizzi___
+#### Traduzione di indirizzi
 int pt_get_paddr(vaddr_t, pid_t); -> Converte un indirizzo logico in un indirizzo fisico 
 
-___Utils___
+#### Utils
 
 int update_tlb_bit(vaddr_t, pid_t); avvisa che un frame (indirizzo virtuale) è stato rimosso dalla TLB.
 
 
-___Gestione hash table___
+#### Gestione hash table
 
 void hashtable_init(void);
 
@@ -161,10 +161,9 @@ La coremap è una componente fondamentale per la gestione della memoria fisica a
 Le funzioni preseneti in [coremap.c](./kern/vm/coremap.c)
 Queste funzioni vengono definite in [coremap.h](./kern/include/coremap.h) e servono a 
 
-__Struttura dati__
+#### Struttura dati
 
-
-__Implementazione__
+#### Implementazione
 
 int get_frame(void); ottenere un frame libero   
 
@@ -176,12 +175,11 @@ void destroy_bitmap(void); distruggere la bitmap
 
 int bitmap_is_active(void); verifica se la bitmap è attiva
 
-___Inizializzazione___
+#### Inizializzazione
 
+#### Terminazione
 
-___Terminazione___
-
-___Kernel: allocazione e dealocalizzazione pagine___
+#### Kernel: allocazione e dealocalizzazione pagine
 
 
 ### TLB Management (g2)
