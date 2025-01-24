@@ -53,13 +53,6 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 
 ```
 
- *    
- *
-
- *
-
- 
-
 ___Creazione e distruzione___
 as_create - create a new empty address space.
 
@@ -111,102 +104,32 @@ __Implementazione__
 Le funzioni preseneti in [pt.c](./
 Queste funzioni vengono definite in [pt.h](./kern/include/pt.h) e servono a inizializzare, effettuare conversioni di indirizzi
 
-
-
-
-
-
-
-
-
 ___Creazione___
 void pt_init(void);
 
 ___Copia___
-/**
- * Questa funzione viene utilizzata per copiare all'interno della PT o del file di swap tutte le pagine del vecchio pid per il nuovo
- *
- * @param pid_t: pid del processo sorgente
- * @param pid_t: pid del processo da agiungere ad ogni pagina
- * 
- * @return void
- */
-void copy_pt_entries(pid_t, pid_t);
 
+void copy_pt_entries(pid_t, pid_t); copiare all'interno della PT o del file di swap tutte le pagine del vecchio pid per il nuovo
 
-/**
- *  setta a uno tutti i bit SWAP relativi al pid passato
- * 
- * @param pid_t: pid del processo
- * 
- * @return void
- */
-void prepare_copy_pt(pid_t);
+void prepare_copy_pt(pid_t); setta a uno tutti i bit SWAP relativi al pid passato
 
-
-/**
- *  setta a zero tutti i bit SWAP relativi al pid passato
- * 
- * @param pid_t: pid del processo
- * 
- * @return void
- */ 
-
-void end_copy_pt(pid_t);
+void end_copy_pt(pid_t); setta a zero tutti i bit SWAP relativi al pid passato
 
 
 ___Gestione pagine___
-/*
- * funzione per ottenere la pagina, chiama pt_get_paddr se presente,
- * altrimenti chiama la funzione findspace che cerca spazio libero nella page table
- * Setta il tlb bit ad 1
- * 
- * @param: indirizzo virtuale che vogliamo accedere
- */
-paddr_t get_page(vaddr_t);
+paddr_t get_page(vaddr_t); funzione per ottenere la pagina, a sua volta chiama pt_get_paddr o findspace per cercare spazio libero nella page table
 
-/**
-* Questa funzione carica una nuova pagina dall'elf file.
-* Se la page table è piena, selezion la paginna da rimuovere
-* usando l'algoritmo second-chance e lo salva nell swip file
-*
-* @param pid del processo che chiede per la page table
-* @param indirizzo virtuale della pagina da caricare
-*
-* @return NULL in caso di errore, altrimenti l'indirizzo fisico
-*/
-paddr_t pt_load_page(vaddr_t, pid_t); //TODO: CLAPE: capire se serve
+paddr_t pt_load_page(vaddr_t, pid_t); carica una nuova pagina dall'elf file. Se la page table è piena, seleziona la pagina da rimuovere usando l'algoritmo second-chance e lo salva nell swap file.
 
-/**
-* Questa funzione rimuove tutte le pagine associate ad un processo quando termina
-*
-* @param pid del processo che termina
-*
-* @return void
-*/
-void free_pages(pid_t);
+
+void free_pages(pid_t); rimuove tutte le pagine associate ad un processo quando termina
 
 
 ___Gestione pagine contigue___
-/**
- * funzione per inserire nella IPT della memoria kernel in modo contiguo
- * 
- * @param int:  numero di pagine contigue da allocare
- * 
- * @return indirizzo fisico trovato nella ipt
- */
-paddr_t get_contiguous_pages(int);
+paddr_t get_contiguous_pages(int);  inserire nella IPT della memoria kernel in modo contiguo
 
 
-
-/**
- * funzione per liberare lo pagine contigue allocate nella ipt
- * 
- * @param vaddr_t: indirizzo virtuale
- * 
- * @return void
- */
-void free_contiguous_pages(vaddr_t);
+void free_contiguous_pages(vaddr_t); liberare lo pagine contigue allocate nella ipt
 
 
 ___Ricerca vittima___
@@ -216,67 +139,21 @@ ___Traduzione di indirizzi___
 int pt_get_paddr(vaddr_t, pid_t); -> Converte un indirizzo logico in un indirizzo fisico 
 
 ___Utils___
-/**
- * Questa funzione avvisa che un frame (indirizzo virtuale) è stato rimosso dalla TLB.
- *
- * @param vaddr_t: indirizzo virtuale
- *
- * @return 1 se tutto è ok, -1 altrimenti
- */
-int update_tlb_bit(vaddr_t, pid_t);
+
+int update_tlb_bit(vaddr_t, pid_t); avvisa che un frame (indirizzo virtuale) è stato rimosso dalla TLB.
 
 
 ___Gestione hash table___
-/**
- * funzione per inizializzare la page table
- * 
- * @param void
- * 
- * @return void
- */
+
 void hashtable_init(void);
 
-/**
- * funzione per aggiungere un blocco alla hash table prendendolo da unused_ptr_list
- * 
- * @param vaddr_t: indirizzo virtuale
- * @param pid_t: pid del processo
- * @param int: indice nella page table
- * 
- * @return void
- */
-void add_in_hash(vaddr_t, pid_t, int);
+void add_in_hash(vaddr_t, pid_t, int); aggiungere un blocco alla hash table prendendolo da unused_ptr_list
 
+int get_index_from_hash(vaddr_t, pid_t); ottenere l'indice della hash table
 
-/**
- * funzione per ottenere l'indice della hash table
- * 
- * @param vaddr_t: indirizzo virtuale
- * @param pid_t: pid del processo
- * 
- * @return indice nella hash table
- */
-int get_index_from_hash(vaddr_t, pid_t);
+void remove_from_hash(vaddr_t, pid_t); rimuove una lista di blocchi dalla page_Table e la aggiunge alla lista di blocchi liberi
 
-/**
- * rimuove una lista di blocchi dalla page_Table e la aggiunge alla lista di blocchi liberi
- * 
- * @param vaddr_t: indirizzo virtuale
- * @param pid_t: pid del processo
- * 
- * @return void
- */
-void remove_from_hash(vaddr_t, pid_t);
-
-/**
- * calcola l'entry della hash table usando una funzione di hash
- * 
- * @param vaddr_t: indirizzo virtuale
- * @param pid_t: pid del processo
- * 
- * @return entry nella hash table
- */
-int get_hash_func(vaddr_t, pid_t);
+int get_hash_func(vaddr_t, pid_t); calcola l'entry della hash table usando una funzione di hash
 
 
 ### Coremap (g1)
