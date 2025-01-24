@@ -19,7 +19,7 @@ Per una miglior coordinazione si è usata una repository condivisa su GitHub e u
 ---
 
 ### Address space (g1):
-L'address space è diviso in modo tale da 
+L'address space è diviso in due segmenti: data e stack.
 __Struttura dati__
 ```
 struct addrspace {
@@ -37,21 +37,52 @@ struct addrspace {
 ```
 
 
-
 __Implementazione__
+Le funzioni presenti in [addrespace.c](./kern/vm/addrespace.c) sono funzioni per creare, gestire e distruggerre l'addrespace.
+Le loro definizioni vengono fatte in [addrespace.h](./kern/include/addrspace.h)
+```
+struct addrspace *as_create(void);
+int               as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid);
+void              as_activate(void);
+void              as_deactivate(void);
+void              as_destroy(struct addrspace *);
+int               as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz, int readable, int writeable, int executable);
+int               as_prepare_load(struct addrspace *as);
+int               as_complete_load(struct addrspace *as);
+int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 
+```
+
+ *    
+ *
+
+ *
+
+ 
 
 ___Creazione e distruzione___
+as_create - create a new empty address space.
 
+as_destroy - dispose of an address space.
 
 ___Copia e attivazione___
+as_copy   - create a new address space that is an exact copy of an old one. 
+___Probably calls as_create to get a new empty address space and fill it in, but that's up to you.__
+
+as_activate - make curproc's address space the one currently "seen" by the processor.
+
+ as_deactivate - unload curproc's address space so it isn't currently "seen" by the processor. This is used to avoid potentially "seeing" it while it's being destroyed.
 
 
 ___Define___
+as_define_region - set up a region of memory within the address space.
 
+as_define_stack - set up the stack region in the address space.          (Normally called *after* as_complete_load().) Hands back the initial stack pointer for the new process.
 
-___Find___
+___Load___
+as_prepare_load - this is called before actually loading from an executable into the address space.
 
+as_complete_load - this is called when loading from an executable is complete.
 
 ### Page table (g1):
 La page table èn strutturata nel seguente modo:
@@ -77,16 +108,176 @@ struct pt_entry {
 
 
 __Implementazione__
+Le funzioni preseneti in [pt.c](./
+Queste funzioni vengono definite in [pt.h](./kern/include/pt.h) e servono a inizializzare, effettuare conversioni di indirizzi
+
+
+
+
+
+
+
 
 
 ___Creazione___
+void pt_init(void);
 
 ___Copia___
+/**
+ * Questa funzione viene utilizzata per copiare all'interno della PT o del file di swap tutte le pagine del vecchio pid per il nuovo
+ *
+ * @param pid_t: pid del processo sorgente
+ * @param pid_t: pid del processo da agiungere ad ogni pagina
+ * 
+ * @return void
+ */
+void copy_pt_entries(pid_t, pid_t);
 
-___Cancellazione e distruzione___
 
+/**
+ *  setta a uno tutti i bit SWAP relativi al pid passato
+ * 
+ * @param pid_t: pid del processo
+ * 
+ * @return void
+ */
+void prepare_copy_pt(pid_t);
+
+
+/**
+ *  setta a zero tutti i bit SWAP relativi al pid passato
+ * 
+ * @param pid_t: pid del processo
+ * 
+ * @return void
+ */ 
+
+void end_copy_pt(pid_t);
+
+
+___Gestione pagine___
+/*
+ * funzione per ottenere la pagina, chiama pt_get_paddr se presente,
+ * altrimenti chiama la funzione findspace che cerca spazio libero nella page table
+ * Setta il tlb bit ad 1
+ * 
+ * @param: indirizzo virtuale che vogliamo accedere
+ */
+paddr_t get_page(vaddr_t);
+
+/**
+* Questa funzione carica una nuova pagina dall'elf file.
+* Se la page table è piena, selezion la paginna da rimuovere
+* usando l'algoritmo second-chance e lo salva nell swip file
+*
+* @param pid del processo che chiede per la page table
+* @param indirizzo virtuale della pagina da caricare
+*
+* @return NULL in caso di errore, altrimenti l'indirizzo fisico
+*/
+paddr_t pt_load_page(vaddr_t, pid_t); //TODO: CLAPE: capire se serve
+
+/**
+* Questa funzione rimuove tutte le pagine associate ad un processo quando termina
+*
+* @param pid del processo che termina
+*
+* @return void
+*/
+void free_pages(pid_t);
+
+
+___Gestione pagine contigue___
+/**
+ * funzione per inserire nella IPT della memoria kernel in modo contiguo
+ * 
+ * @param int:  numero di pagine contigue da allocare
+ * 
+ * @return indirizzo fisico trovato nella ipt
+ */
+paddr_t get_contiguous_pages(int);
+
+
+
+/**
+ * funzione per liberare lo pagine contigue allocate nella ipt
+ * 
+ * @param vaddr_t: indirizzo virtuale
+ * 
+ * @return void
+ */
+void free_contiguous_pages(vaddr_t);
+
+
+___Ricerca vittima___
+int find_victim(vaddr_t, pid_t);
 
 ___Traduzione di indirizzi___
+int pt_get_paddr(vaddr_t, pid_t); -> Converte un indirizzo logico in un indirizzo fisico 
+
+___Utils___
+/**
+ * Questa funzione avvisa che un frame (indirizzo virtuale) è stato rimosso dalla TLB.
+ *
+ * @param vaddr_t: indirizzo virtuale
+ *
+ * @return 1 se tutto è ok, -1 altrimenti
+ */
+int update_tlb_bit(vaddr_t, pid_t);
+
+
+___Gestione hash table___
+/**
+ * funzione per inizializzare la page table
+ * 
+ * @param void
+ * 
+ * @return void
+ */
+void hashtable_init(void);
+
+/**
+ * funzione per aggiungere un blocco alla hash table prendendolo da unused_ptr_list
+ * 
+ * @param vaddr_t: indirizzo virtuale
+ * @param pid_t: pid del processo
+ * @param int: indice nella page table
+ * 
+ * @return void
+ */
+void add_in_hash(vaddr_t, pid_t, int);
+
+
+/**
+ * funzione per ottenere l'indice della hash table
+ * 
+ * @param vaddr_t: indirizzo virtuale
+ * @param pid_t: pid del processo
+ * 
+ * @return indice nella hash table
+ */
+int get_index_from_hash(vaddr_t, pid_t);
+
+/**
+ * rimuove una lista di blocchi dalla page_Table e la aggiunge alla lista di blocchi liberi
+ * 
+ * @param vaddr_t: indirizzo virtuale
+ * @param pid_t: pid del processo
+ * 
+ * @return void
+ */
+void remove_from_hash(vaddr_t, pid_t);
+
+/**
+ * calcola l'entry della hash table usando una funzione di hash
+ * 
+ * @param vaddr_t: indirizzo virtuale
+ * @param pid_t: pid del processo
+ * 
+ * @return entry nella hash table
+ */
+int get_hash_func(vaddr_t, pid_t);
+
 
 ### Coremap (g1)
 La coremap è una componente fondamentale per la gestione della memoria fisica all'interno del sistema di memoria virtuale. Questa struttura dati tiene traccia dello stato di ogni pagina in memoria fisica, consentendo al sistema di sapere quali pagine sono attualmente in uso, quali sono libere e quali devono essere sostituite o recuperate dal disco. 
