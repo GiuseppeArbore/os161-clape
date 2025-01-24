@@ -1,26 +1,25 @@
 # Progetto OS161: C1.1
----
+
 ### Introduzione
 Il progetto ha l'obbiettivo di espandere il modulo della gestione della memoria (dumbvm), sostituendolo completamente con un gestore di memoria virtuale più avanzato basato sulla tabella delle pagine dei progetti. 
 Il progetto richiede inoltre di lavorare sulla TLB (Translation Lookaside Buffer).
 
-Il progetto è stato svolto nella variante C1.2 che prevede l'introduzione di una Inverted Page Table con una soluzione per velocizzare la ricerca. Per fare ciò è stata implementata una hash table. 
-# CACA VERIFICA QUELLO CHE HO SCRITTO SOPRA
+Il progetto è stato svolto nella variante C1.2 che prevede l'introduzione di una __Inverted Page Table__ con una hash table per velocizzare la ricerca.
+# CACA VERIFICA QUELLO CHE HO SCRITTO SOPRA TODO
 
 ## Composizione e suddivisione del lavoro
----
+
 Il lavoro è stato suddiviso tra i componenti del gruppo nel seguente modo:
-- g1: Giuseppe Arbore (s329535): _cosa ho fatto io a grandi linee_
-- g2: Claudia Maggiulli (s332252): _cosa hai fatto tu a grandi linee_
+- g1: Giuseppe Arbore (s329535): _cosa ho fatto io a grandi linee_ TODO
+- g2: Claudia Maggiulli (s332252): _cosa hai fatto tu a grandi linee_ TODO
 
 Per una miglior coordinazione si è usata una repository condivisa su GitHub e un file condiviso su Notion in modo tale di tener traccia dei vari progressi.
 
 ## Implementazione
----
 
 ### Address space (g1):
 L'address space è diviso in due segmenti: data e stack.
-####Struttura dati
+#### Struttura dati
 ```
 struct addrspace {
         vaddr_t as_vbase1;
@@ -38,8 +37,7 @@ struct addrspace {
 
 
 #### Implementazione
-Le funzioni presenti in [addrespace.c](./kern/vm/addrespace.c) sono funzioni per creare, gestire e distruggerre l'addrespace.
-Le loro definizioni vengono fatte in [addrespace.h](./kern/include/addrspace.h)
+Le funzioni presenti in [addrespace.c](./kern/vm/addrespace.c) si occupano della gestione degli spazi di indirizzi e delle operazioni di memoria virtuale per OS/161, le loro definizioni sono in [addrespace.h](./kern/include/addrspace.h).
 ```
 struct addrspace *as_create(void);
 int               as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid);
@@ -54,28 +52,26 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 ```
 
 #### Creazione e distruzione
-as_create - create a new empty address space.
+___as_create___ : crea un nuovo spazio di indirizzi e alloca memoria per la struttura addrspace e ne inizializza i campi
 
-as_destroy - dispose of an address space.
+___as_destroy___ : libera la memoria associata a uno spazio di indirizzi: 
+- all'interno è implementato un conteggio dei riferimenti al file, nel caso in cui questo sia 1, il file viene effettivamente chiuso; in caso contrario, viene semplicemente decrementato il conteggio
 
 #### Copia e attivazione
-as_copy   - create a new address space that is an exact copy of an old one. 
-___Probably calls as_create to get a new empty address space and fill it in, but that's up to you.__
+___as_copy___ : duplica uno spazio di indirizzi esistente da un processo a un altro. 
+- È utile per il fork di un processo, copiando le informazioni di memoria necessarie al nuovo processo.
 
-as_activate - make curproc's address space the one currently "seen" by the processor.
-
- as_deactivate - unload curproc's address space so it isn't currently "seen" by the processor. This is used to avoid potentially "seeing" it while it's being destroyed.
-
+___as_activate___ : attiva lo spazio di indirizzi corrente per il processo in esecuzione e invalida la TLB per evitare di usare traduzioni errate appartenenti ad un vecchio processo.
 
 #### Define
-as_define_region - set up a region of memory within the address space.
+___as_define_region___ : definisce una nuova regione di memoria in uno spazio di indirizzi, imposta la virtual_base e la dimensione.
 
-as_define_stack - set up the stack region in the address space.          (Normally called *after* as_complete_load().) Hands back the initial stack pointer for the new process.
+___as_define_stack___ : Definisce lo spazio per lo stack utente in uno spazio di indirizzi, inizializzando il puntatore allo stack
 
 #### Load
-as_prepare_load - this is called before actually loading from an executable into the address space.
+___as_prepare_load___ : prepara il caricamento dei segmenti di memoria nell'address space.
 
-as_complete_load - this is called when loading from an executable is complete.
+___as_complete_load___ : completa caricamento dei segmenti di memoria.
 
 ### Page table (g1):
 La page table èn strutturata nel seguente modo:
