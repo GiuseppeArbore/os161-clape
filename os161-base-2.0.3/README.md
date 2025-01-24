@@ -101,7 +101,7 @@ struct pt_entry {
 
 
 __Implementazione__
-Le funzioni preseneti in [pt.c](./
+Le funzioni preseneti in [pt.c](./kern/vm/pt.c)
 Queste funzioni vengono definite in [pt.h](./kern/include/pt.h) e servono a inizializzare, effettuare conversioni di indirizzi
 
 ___Creazione___
@@ -158,11 +158,23 @@ int get_hash_func(vaddr_t, pid_t); calcola l'entry della hash table usando una f
 
 ### Coremap (g1)
 La coremap è una componente fondamentale per la gestione della memoria fisica all'interno del sistema di memoria virtuale. Questa struttura dati tiene traccia dello stato di ogni pagina in memoria fisica, consentendo al sistema di sapere quali pagine sono attualmente in uso, quali sono libere e quali devono essere sostituite o recuperate dal disco. 
+Le funzioni preseneti in [coremap.c](./kern/vm/coremap.c)
+Queste funzioni vengono definite in [coremap.h](./kern/include/coremap.h) e servono a 
+
 __Struttura dati__
 
 
 __Implementazione__
 
+int get_frame(void); ottenere un frame libero   
+
+void free_frame(int); liberare un frame
+
+void bitmap_init(void); inizializzare la bitmap
+
+void destroy_bitmap(void); distruggere la bitmap
+
+int bitmap_is_active(void); verifica se la bitmap è attiva
 
 ___Inizializzazione___
 
@@ -452,7 +464,7 @@ Di seguito si riportano le statistiche registrate per ogni test:
 
 
 Prima di lanciare i test, è richiesto di aumentare la memoria RAM disponibile a 2MB (per farlo, vedere il file root/sys161.conf) a causa di strutture dati aggiuntive da noi usate. 
-# Verificare se funziona anche con 1MB
+# Verificare se funziona anche con 1MB TODO CLAPE
 
 Per lo swapfile, è stata usare la raw partition di _LHD0.img_ . Nell'implementazione, si è deciso di usare come dimensione 9MB invece dei 5MB presenti nella versione predefinita. Per allinearsi, è quindi richiesto di lanciare il seguente comando all'interno della cartella _root_:
 
