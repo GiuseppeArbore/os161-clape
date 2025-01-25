@@ -101,7 +101,10 @@ Le funzioni preseneti in [pt.c](./kern/vm/pt.c)
 Queste funzioni vengono definite in [pt.h](./kern/include/pt.h) e servono a inizializzare, effettuare conversioni di indirizzi
 
 #### Creazione
-void pt_init(void);
+___pt_init___ : inizializza la page table
+- Calcola il numero di frame disponibili nella RAM.
+- Alloca memoria per le entries della page table e imposta le strutture di sincronizzazione (lock e condition variable).
+- Inizializza ogni entry della page table con valori predefiniti e assegna i lock e le variabili di condizione a ciascuna entry.
 
 #### Copia
 
@@ -113,30 +116,33 @@ void end_copy_pt(pid_t); setta a zero tutti i bit SWAP relativi al pid passato
 
 
 #### Gestione pagine
-paddr_t get_page(vaddr_t); funzione per ottenere la pagina, a sua volta chiama pt_get_paddr o findspace per cercare spazio libero nella page table
+___get_page___ : funzione per ottenere la pagina, a sua volta chiama pt_get_paddr o findspace per cercare spazio libero nella page table
 
-paddr_t pt_load_page(vaddr_t, pid_t); carica una nuova pagina dall'elf file. Se la page table è piena, seleziona la pagina da rimuovere usando l'algoritmo second-chance e lo salva nell swap file.
+___pt_load_page___ : carica una nuova pagina dall'elf file. Se la page table è piena, seleziona la pagina da rimuovere usando l'algoritmo second-chance e lo salva nell swap file.
 
+___free_pages(pid_t)___ rimuove tutte le pagine associate ad un processo quando termina
+##### Ricerca pagina
+___findspace___ : scorre la page table cercando una pagina libera.
 
-void free_pages(pid_t); rimuove tutte le pagine associate ad un processo quando termina
+___find_victim___ : cerca una "vittima" da rimuovere dalla memoria quando è necessario caricare una nuova pagina
+- Scorre la page table e cerca pagine che non sono in uso
 
 
 #### Gestione pagine contigue
-paddr_t get_contiguous_pages(int);  inserire nella IPT della memoria kernel in modo contiguo
+___get_contiguous_pages___ :  alloca un gruppo  di pagine consecutive nella memoria fisica
+- se necessario, trova vittime per creare spazio
+
+___free_contiguous_pages___ : liberare le pagine contigue allocate nella ipt per un determinato indirizzo virtuale
 
 
-void free_contiguous_pages(vaddr_t); liberare lo pagine contigue allocate nella ipt
 
-
-#### Ricerca vittima
-int find_victim(vaddr_t, pid_t);
 
 #### Traduzione di indirizzi
-int pt_get_paddr(vaddr_t, pid_t); -> Converte un indirizzo logico in un indirizzo fisico 
+___pt_get_paddr___ : converte un indirizzo logico in un indirizzo fisico 
 
 #### Utils
 
-int update_tlb_bit(vaddr_t, pid_t); avvisa che un frame (indirizzo virtuale) è stato rimosso dalla TLB.
+___update_tlb_bit___ : avvisa che un frame (indirizzo virtuale) è stato rimosso dalla TLB.
 
 
 #### Gestione hash table
