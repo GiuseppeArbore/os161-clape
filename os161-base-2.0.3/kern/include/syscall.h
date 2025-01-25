@@ -32,7 +32,7 @@
 
 
 #include <cdefs.h> /* for __DEAD */
-#include <opt-fork.h> //TODO: CLAPE
+#include <opt-fork.h> 
 
 
 struct trapframe; /* from <machine/trapframe.h> */

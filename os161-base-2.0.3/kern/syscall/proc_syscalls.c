@@ -1,7 +1,7 @@
 /*
  * AUthor: G.Cabodi
  * Very simple implementation of sys__exit.
- * It just avoids crash/panic. Full process exit still TODO
+ * It just avoids crash/panic.
  * Address space is released
  */
 

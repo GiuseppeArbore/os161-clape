@@ -50,7 +50,7 @@
 #include <vnode.h>
 
 
-//TODO: CLAPE: aggiunto, controllare
+
 static struct _processTable{
 	int active;	// 0 = inactive, 1 = active
 	struct proc *proc[MAX_PROC+1]; 

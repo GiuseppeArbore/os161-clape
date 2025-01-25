@@ -782,7 +782,7 @@ thread_exit(void)
 
 	cur = curthread;
 
-	struct proc *p = curproc; //CLAPE added
+	struct proc *p = curproc; 
 
 	/*
 	 * Detach from our process. You might need to move this action

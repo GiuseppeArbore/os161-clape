@@ -163,7 +163,6 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	npages = memsize / PAGE_SIZE;
 
 
-	//CLAPE: Non le stiamo usando, capire che farci
 	(void)readable;
 	(void)writeable;
 	(void)executable;
@@ -266,7 +265,7 @@ void vm_shutdown(void){
 	{
 		if (page_table.entries[i].ctrl!=0)
 		{
-			kprintf("Page %d is still in the page table\n",i); //TODO: CLAPE: capire bene se entry o page
+			kprintf("Page %d is still in the page table\n",i); 
 			/*
 				kprintf("Entry%d has not been freed! ctl=%d, pid=%d\n",i,peps.pt[i].ctl,peps.pt[i].pid);
 
@@ -274,7 +273,7 @@ void vm_shutdown(void){
 		}
 		if (page_table.entries[i].page==1)
 		{
-			kprintf("errore , capire bene cosa stampare\n"); //TODO: CLAPE
+			kprintf("errore , capire bene cosa stampare\n"); 
 			/*
 				kprintf("It looks like some errors with free occurred: entry%d, process %d\n",i,peps.pt[i].pid);
 			*/
@@ -341,7 +340,7 @@ void free_kpages(vaddr_t addr){
 }
 
 void addrspace_init(void){
-	spinlock_init(&stealmem_lock); //todo: importare stealmem_lock
+	spinlock_init(&stealmem_lock);
 	pt_active=0;
 }
 

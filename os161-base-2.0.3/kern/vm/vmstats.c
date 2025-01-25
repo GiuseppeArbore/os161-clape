@@ -49,7 +49,6 @@ void add_tlb_reload(void)
 /*
 *gestisce le statistiche dei page faults
 */
-//TODO capire se serve il singolo DISK_FAULT
 void add_page_fault(int faulttype)
 {
     switch (faulttype)
