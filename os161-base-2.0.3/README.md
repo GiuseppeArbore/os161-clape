@@ -1,26 +1,25 @@
 # Progetto OS161: C1.1
----
+
 ### Introduzione
 Il progetto ha l'obbiettivo di espandere il modulo della gestione della memoria (dumbvm), sostituendolo completamente con un gestore di memoria virtuale più avanzato basato sulla tabella delle pagine dei progetti. 
 Il progetto richiede inoltre di lavorare sulla TLB (Translation Lookaside Buffer).
 
-Il progetto è stato svolto nella variante C1.2 che prevede l'introduzione di una Inverted Page Table con una soluzione per velocizzare la ricerca. Per fare ciò è stata implementata una hash table. 
-# CACA VERIFICA QUELLO CHE HO SCRITTO SOPRA
+Il progetto è stato svolto nella variante C1.2 che prevede l'introduzione di una __Inverted Page Table__ con una hash table per velocizzare la ricerca.
+# CACA VERIFICA QUELLO CHE HO SCRITTO SOPRA TODO
 
 ## Composizione e suddivisione del lavoro
----
+
 Il lavoro è stato suddiviso tra i componenti del gruppo nel seguente modo:
-- g1: Giuseppe Arbore (s329535): _cosa ho fatto io a grandi linee_
-- g2: Claudia Maggiulli (s332252): _cosa hai fatto tu a grandi linee_
+- g1: Giuseppe Arbore (s329535): _cosa ho fatto io a grandi linee_ TODO
+- g2: Claudia Maggiulli (s332252): _cosa hai fatto tu a grandi linee_ TODO
 
 Per una miglior coordinazione si è usata una repository condivisa su GitHub e un file condiviso su Notion in modo tale di tener traccia dei vari progressi.
 
 ## Implementazione
----
 
 ### Address space (g1):
-L'address space è diviso in modo tale da 
-__Struttura dati__
+L'address space è diviso in due segmenti: data e stack.
+#### Struttura dati
 ```
 struct addrspace {
         vaddr_t as_vbase1;
@@ -37,25 +36,46 @@ struct addrspace {
 ```
 
 
+#### Implementazione
+Le funzioni presenti in [addrespace.c](./kern/vm/addrespace.c) si occupano della gestione degli spazi di indirizzi e delle operazioni di memoria virtuale per OS/161, le loro definizioni sono in [addrespace.h](./kern/include/addrspace.h).
+```
+struct addrspace *as_create(void);
+int               as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid);
+void              as_activate(void);
+void              as_deactivate(void);
+void              as_destroy(struct addrspace *);
+int               as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz, int readable, int writeable, int executable);
+int               as_prepare_load(struct addrspace *as);
+int               as_complete_load(struct addrspace *as);
+int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 
-__Implementazione__
+```
 
+#### Creazione e distruzione
+___as_create___ : crea un nuovo spazio di indirizzi e alloca memoria per la struttura addrspace e ne inizializza i campi
 
-___Creazione e distruzione___
+___as_destroy___ : libera la memoria associata a uno spazio di indirizzi: 
+- all'interno è implementato un conteggio dei riferimenti al file, nel caso in cui questo sia 1, il file viene effettivamente chiuso; in caso contrario, viene semplicemente decrementato il conteggio
 
+#### Copia e attivazione
+___as_copy___ : duplica uno spazio di indirizzi esistente da un processo a un altro. 
+- È utile per il fork di un processo, copiando le informazioni di memoria necessarie al nuovo processo.
 
-___Copia e attivazione___
+___as_activate___ : attiva lo spazio di indirizzi corrente per il processo in esecuzione e invalida la TLB per evitare di usare traduzioni errate appartenenti ad un vecchio processo.
 
+#### Define
+___as_define_region___ : definisce una nuova regione di memoria in uno spazio di indirizzi, imposta la virtual_base e la dimensione.
 
-___Define___
+___as_define_stack___ : Definisce lo spazio per lo stack utente in uno spazio di indirizzi, inizializzando il puntatore allo stack
 
+#### Load
+___as_prepare_load___ : prepara il caricamento dei segmenti di memoria nell'address space.
 
-___Find___
-
+___as_complete_load___ : completa caricamento dei segmenti di memoria.
 
 ### Page table (g1):
 La page table èn strutturata nel seguente modo:
-__Struttura dati__
+#### Struttura dati
 ```
 struct pt_info{
     struct pt_entry *entries; // array di pt_entry (IPT) 
@@ -76,32 +96,92 @@ struct pt_entry {
 ```
 
 
-__Implementazione__
+#### Implementazione
+Le funzioni preseneti in [pt.c](./kern/vm/pt.c)
+Queste funzioni vengono definite in [pt.h](./kern/include/pt.h) e servono a inizializzare, effettuare conversioni di indirizzi
+
+#### Creazione
+___pt_init___ : inizializza la page table
+- Calcola il numero di frame disponibili nella RAM.
+- Alloca memoria per le entries della page table e imposta le strutture di sincronizzazione (lock e condition variable).
+- Inizializza ogni entry della page table con valori predefiniti e assegna i lock e le variabili di condizione a ciascuna entry.
+
+#### Copia
+
+void copy_pt_entries(pid_t, pid_t); copiare all'interno della PT o del file di swap tutte le pagine del vecchio pid per il nuovo
+
+void prepare_copy_pt(pid_t); setta a uno tutti i bit SWAP relativi al pid passato
+
+void end_copy_pt(pid_t); setta a zero tutti i bit SWAP relativi al pid passato
 
 
-___Creazione___
+#### Gestione pagine
+___get_page___ : funzione per ottenere la pagina, a sua volta chiama pt_get_paddr o findspace per cercare spazio libero nella page table
 
-___Copia___
+___pt_load_page___ : carica una nuova pagina dall'elf file. Se la page table è piena, seleziona la pagina da rimuovere usando l'algoritmo second-chance e lo salva nell swap file.
 
-___Cancellazione e distruzione___
+___free_pages(pid_t)___ rimuove tutte le pagine associate ad un processo quando termina
+##### Ricerca pagina
+___findspace___ : scorre la page table cercando una pagina libera.
+
+___find_victim___ : cerca una "vittima" da rimuovere dalla memoria quando è necessario caricare una nuova pagina
+- Scorre la page table e cerca pagine che non sono in uso
 
 
-___Traduzione di indirizzi___
+#### Gestione pagine contigue
+___get_contiguous_pages___ :  alloca un gruppo  di pagine consecutive nella memoria fisica
+- se necessario, trova vittime per creare spazio
+
+___free_contiguous_pages___ : liberare le pagine contigue allocate nella ipt per un determinato indirizzo virtuale
+
+
+
+
+#### Traduzione di indirizzi
+___pt_get_paddr___ : converte un indirizzo logico in un indirizzo fisico 
+
+#### Utils
+
+___update_tlb_bit___ : avvisa che un frame (indirizzo virtuale) è stato rimosso dalla TLB.
+
+
+#### Gestione hash table
+
+void hashtable_init(void);
+
+void add_in_hash(vaddr_t, pid_t, int); aggiungere un blocco alla hash table prendendolo da unused_ptr_list
+
+int get_index_from_hash(vaddr_t, pid_t); ottenere l'indice della hash table
+
+void remove_from_hash(vaddr_t, pid_t); rimuove una lista di blocchi dalla page_Table e la aggiunge alla lista di blocchi liberi
+
+int get_hash_func(vaddr_t, pid_t); calcola l'entry della hash table usando una funzione di hash
+
 
 ### Coremap (g1)
 La coremap è una componente fondamentale per la gestione della memoria fisica all'interno del sistema di memoria virtuale. Questa struttura dati tiene traccia dello stato di ogni pagina in memoria fisica, consentendo al sistema di sapere quali pagine sono attualmente in uso, quali sono libere e quali devono essere sostituite o recuperate dal disco. 
-__Struttura dati__
+Le funzioni preseneti in [coremap.c](./kern/vm/coremap.c)
+Queste funzioni vengono definite in [coremap.h](./kern/include/coremap.h) e servono a 
 
+#### Struttura dati
 
-__Implementazione__
+#### Implementazione
 
+int get_frame(void); ottenere un frame libero   
 
-___Inizializzazione___
+void free_frame(int); liberare un frame
 
+void bitmap_init(void); inizializzare la bitmap
 
-___Terminazione___
+void destroy_bitmap(void); distruggere la bitmap
 
-___Kernel: allocazione e dealocalizzazione pagine___
+int bitmap_is_active(void); verifica se la bitmap è attiva
+
+#### Inizializzazione
+
+#### Terminazione
+
+#### Kernel: allocazione e dealocalizzazione pagine
 
 
 ### TLB Management (g2)
@@ -384,7 +464,7 @@ Di seguito si riportano le statistiche registrate per ogni test:
 
 
 Prima di lanciare i test, è richiesto di aumentare la memoria RAM disponibile a 2MB (per farlo, vedere il file root/sys161.conf) a causa di strutture dati aggiuntive da noi usate. 
-# Verificare se funziona anche con 1MB
+# Verificare se funziona anche con 1MB TODO CLAPE
 
 Per lo swapfile, è stata usare la raw partition di _LHD0.img_ . Nell'implementazione, si è deciso di usare come dimensione 9MB invece dei 5MB presenti nella versione predefinita. Per allinearsi, è quindi richiesto di lanciare il seguente comando all'interno della cartella _root_:
 
