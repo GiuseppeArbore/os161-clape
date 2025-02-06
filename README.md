@@ -3,6 +3,7 @@
 ### Introduzione
 Il progetto ha l'obbiettivo di espandere il modulo della gestione della memoria (dumbvm), sostituendolo completamente con un gestore di memoria virtuale più avanzato, basato sulla tabella delle pagine dei progetti. 
 Il progetto richiede inoltre di lavorare sulla TLB (Translation Lookaside Buffer).
+# TODO: vogliamo nominare anche lo swapfile?
 
 Il progetto è stato svolto nella variante C1.2 che prevede l'introduzione di una __Inverted Page Table__ con una hash table per velocizzare la ricerca.
 # CACA VERIFICA QUELLO CHE HO SCRITTO SOPRA TODO
@@ -18,6 +19,14 @@ Per una miglior coordinazione si è usata una repository condivisa su GitHub e u
 ## Implementazione
 
 ### Address space (g1):
+Per supportare l'on demand paging, sono state effettuate modifiche alla gestione dell'addresspace.
+Il primo cambiamento riguarda la gestione dello stack, dove con l'on demand paging non si ha più la necessità di allocare all'inizio uno spazio di memoria contiguo per lo stack.
+Il secondo cambiamento riguarda le gestione del loadelf dove viene definito lo spazio degli virtuali in modo tale da caricare le pagine quando necessarie. Per gestire questo meccanismo, sono stati definiti all'interno della struttura riguardante l'addresspace le intestazioni relative al segmento di testo e al segnmento di dati.
+Nella struttura dell'addresspace sono inoltre presenti gli offset realtivi alle due sezioni in quanto queste potrebbero non essere allineate all'inizio della pagina.
+Per gestire la terminazione di un processo, vengono cancellate le informazioni del processo dalla tabella delle pagine e dal file di swap mentre per gestire al meglio la fork, viene usata la funzione as_copu che copia tutte le pagine del processo nella tabella delle pagine e viene sostituito dal nuovo processo.
+#TODO: peppe verifica asCopy
+
+
 L'address space è diviso in due segmenti: data e stack.
 #### Struttura dati
 ```
@@ -28,7 +37,7 @@ struct addrspace {
         size_t as_npages2;
         Elf_Phdr ph1;//Program header of the text section
         Elf_Phdr ph2;//Program header of the data section
-        struct vnode *v;//vnode of the elf file
+        struct vnode *v; //vnode of the elf  - eseguibile
         size_t initial_offset1;
         size_t initial_offset2;
         int valid;
@@ -74,7 +83,17 @@ ___as_prepare_load___ : prepara il caricamento dei segmenti di memoria nell'addr
 ___as_complete_load___ : completa caricamento dei segmenti di memoria.
 
 ### Page table (g1):
-La page table èn strutturata nel seguente modo:
+La page table usata è una Inverted Page Table, che riceve un indirizzo virtuale e l'ID del processo e sakva questi valori all'interno della RAM. Per la ricerca della vittima, è stata usata la tecnica del rimpiazziamento basato su second chance su una coda FIFO. Nel caso in cui la pagina non sia nella TLB e il Bit di riferimento sia uguale a 0, questa può essere sostituita; nel caso in cui il Bit di riferimento sia uguale ad 1, esso viene settato a 0 e si continua la ricerca in modo circolare.
+Per l'algoritmo di second change, vengono escluse le pagine che non posso essere rimosse quali quelle interessate in operazioni di I/O, fork o inserite al momento nella TLB. 
+
+Le pagine interessate in operazioni di I/O non vengono considerate in quanto le operazioni di I/O fallirebbero in caso opposto.
+Per quanto riguarda le pagine interessate nella fork, viene controllato lo swap bit, un loro spostamento dalla tabella delle pagine nel mezzo di una fork potrebbe causare incongruenze che potrebbero portare a pagine non copiate. Per evitare questo problema, si ferma la situazione all'inizio del fork fino a quando non è stato completata con successo. TODO: Aggiunger kmalloc
+Per quanto riguarda le pagine kmalloc (TODO), queste non possono essere spostate in quanto si trovano nello spazio di indirizzidel kernel che non accedere alla page table per tradurre l'indirizzo virtuale in quello fisico.
+In aggiunta, quando una pagina viene rimossa dalla TLB, il suo reference bit viene settato a 1 in modo tale da evitare che venga selezionata come una vittima in quanto potrebbe essere acceduta nel tempo seguente dato che le pagine presenti nell TLB sono quelle accedute più di recente.
+
+
+
+La page table è strutturata nel seguente modo:
 #### Struttura dati
 ```
 struct pt_info{
