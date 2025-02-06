@@ -1,7 +1,7 @@
 # Progetto OS161: C1.1
 
 ### Introduzione
-Il progetto ha l'obbiettivo di espandere il modulo della gestione della memoria (dumbvm), sostituendolo completamente con un gestore di memoria virtuale più avanzato basato sulla tabella delle pagine dei progetti. 
+Il progetto ha l'obbiettivo di espandere il modulo della gestione della memoria (dumbvm), sostituendolo completamente con un gestore di memoria virtuale più avanzato, basato sulla tabella delle pagine dei progetti. 
 Il progetto richiede inoltre di lavorare sulla TLB (Translation Lookaside Buffer).
 
 Il progetto è stato svolto nella variante C1.2 che prevede l'introduzione di una __Inverted Page Table__ con una hash table per velocizzare la ricerca.
@@ -425,10 +425,9 @@ void reorder_swapfile(void){
 
 
 ### Altre modifiche:
-
+Noi abbiamo anche modificato l'implementazione delle system calls necessarie (fork, waitpid, _exit) e alcune parti di `loadelf.c`. 
 
 ## Test
----
 Per verificare l'effettivo funzionamento del sistema, sono stati usati i test già presenti all'interno di os161:
 - palin: 
 - matmult:
@@ -447,6 +446,7 @@ Inoltre, per verificare le funzioni base del kernel fossero già correttamente i
 - km2: 
 
 
+## Statistiche
 Di seguito si riportano le statistiche registrate per ogni test:
 
 | Nome test | TLB faults | TLB faults (free) | TLB faults (replace) | TLB invalidations | TLB reloads | Page faults (zeroed) | Page faults (disk) | Page faults (ELF) | Page faults (swapfile) | Swapfile writes |
@@ -461,9 +461,40 @@ Di seguito si riportano le statistiche registrate per ogni test:
 |ctest|||||||||||
 |ALTRO|||||||||||
 
+### Glossario statistiche: TODO INSERIRE NOMI NOSTRI e controllare
 
+Le seguenti statistiche sono state collezionale (Aggiungiamo i nomi delle variabili):
 
-Prima di lanciare i test, è richiesto di aumentare la memoria RAM disponibile a 2MB (per farlo, vedere il file root/sys161.conf) a causa di strutture dati aggiuntive da noi usate. 
+1. **TLB Faults -** (`nome nostro`)
+    - Numero totale di miss nella TLB.
+2. **TLB Faults with Free -** (`nome nostro`)
+    - Il numero di miss nella TLB che causano un inserimento in uno spazio vuoto della TLB. (spazio della TLB in cui si può aggiungere una nuova entry senza bisogno di rimpiazzamento)
+3. **TLB Faults with Replace  -** (`nome nostro`)
+    - Il numero di miss nella TLB che causa la scelta di una vittima da sovrascrivere con una nuova entry.
+4. **TLB Invalidations -**  (`nome nostro`)
+    - Il numero di volte in xui l'intera TLB viene invalidata. L'operazione è eseguita ogni volta che avviene uno switch di processo.
+5. **TLB Reloads** (`nome nostro`)
+    - Il numero di miss nella TLB causato da pagine che sono già in memoria.
+6. **Page Faults (Zeroed)** - (`nome nostro`)
+    - Il numero di miss nella TLB che richiede una nuova pagina inizializzata a zero.
+7. **Page Faults (Disk)**  - (`nome nostro`)
+    - Il numero di miss nella TLB che richiede il caricamento di una pagina dal disco.
+8. **Page Faults From Elf** - (`nome nostro`)
+    - Il numero di Page Faults che richiede una pagina dal file ELF.
+9. **Page Faults from Swapfile**  - (`nome nostro`)
+    - Il numero di page fault che richiede ottenere una pagina dallo swap file.
+10. **Swapfile Writes**  - (`nome nostro`)
+    - Il numero di page faults che richiede scrivere una pagina nello swap file.
+   
+### Relazione tra statistiche
+
+- La somma dei “*TLB faults with Free*” e “*TLB Faults with Replace*” deve essere uguale ai “*TLB Faults*”.
+- La somma dei “*TLB Reloads*”, “*Page Faults (Disk)*” e “*Page Faults (Zeroed)*” deve essere uguale ai “*TLB Faults*”.
+- La somma dei “*Page Faults from ELF*” e “*Page Faults from Swapfile*” deve essere uguale ai ”*Page Faults (Disk)*”.
+
+  
+## Note per effettuare i test
+Prima di lanciare i test, è richiesto di aumentare la memoria RAM disponibile a 2MB (per farlo, vedere il file sys161.conf presente in root) a causa di strutture dati aggiuntive da noi usate. 
 # Verificare se funziona anche con 1MB TODO CLAPE
 
 Per lo swapfile, è stata usare la raw partition di _LHD0.img_ . Nell'implementazione, si è deciso di usare come dimensione 9MB invece dei 5MB presenti nella versione predefinita. Per allinearsi, è quindi richiesto di lanciare il seguente comando all'interno della cartella _root_:
