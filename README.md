@@ -1,6 +1,6 @@
 # Progetto OS161: C1.1
 
-### Introduzione
+## Introduzione
 Il progetto ha l'obbiettivo di espandere il modulo della gestione della memoria (dumbvm), sostituendolo completamente con un gestore di memoria virtuale più avanzato, basato sulla tabella delle pagine dei progetti. 
 Il progetto richiede inoltre di lavorare sulla TLB (Translation Lookaside Buffer).
 Il progetto è stato svolto nella variante C1.2 che prevede l'introduzione di una __Inverted Page Table__ con una hash table per velocizzare la ricerca.
@@ -57,27 +57,31 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 
 ```
 
-#### Creazione e distruzione
-___as_create___ : crea un nuovo spazio di indirizzi e alloca memoria per la struttura addrspace e ne inizializza i campi
+##### as_create
+crea un nuovo spazio di indirizzi e alloca memoria per la struttura addrspace e ne inizializza i campi
 
-___as_destroy___ : libera la memoria associata a uno spazio di indirizzi: 
+##### as_destroy
+libera la memoria associata a uno spazio di indirizzi: 
 - all'interno è implementato un conteggio dei riferimenti al file, nel caso in cui questo sia 1, il file viene effettivamente chiuso; in caso contrario, viene semplicemente decrementato il conteggio
 
-#### Copia e attivazione
-___as_copy___ : duplica uno spazio di indirizzi esistente da un processo a un altro. 
+##### as_copy
+duplica uno spazio di indirizzi esistente da un processo a un altro. 
 - È utile per il fork di un processo, copiando le informazioni di memoria necessarie al nuovo processo.
 
-___as_activate___ : attiva lo spazio di indirizzi corrente per il processo in esecuzione e invalida la TLB per evitare di usare traduzioni errate appartenenti ad un vecchio processo.
+##### as_activate
+attiva lo spazio di indirizzi corrente per il processo in esecuzione e invalida la TLB per evitare di usare traduzioni errate appartenenti ad un vecchio processo.
 
-#### Define
-___as_define_region___ : definisce una nuova regione di memoria in uno spazio di indirizzi, imposta la virtual_base e la dimensione.
+##### as_define_region
+definisce una nuova regione di memoria in uno spazio di indirizzi, imposta la virtual_base e la dimensione.
 
-___as_define_stack___ : Definisce lo spazio per lo stack utente in uno spazio di indirizzi, inizializzando il puntatore allo stack
+##### as_define_stack
+Definisce lo spazio per lo stack utente in uno spazio di indirizzi, inizializzando il puntatore allo stack
 
-#### Load
-___as_prepare_load___ : prepara il caricamento dei segmenti di memoria nell'address space.
+##### as_prepare_load
+prepara il caricamento dei segmenti di memoria nell'address space.
 
-___as_complete_load___ : completa caricamento dei segmenti di memoria.
+##### as_complete_load
+completa caricamento dei segmenti di memoria.
 
 ### Page table (g1):
 La page table usata è una Inverted Page Table, che riceve un indirizzo virtuale e l'ID del processo e sakva questi valori all'interno della RAM. Per la ricerca della vittima, è stata usata la tecnica del rimpiazziamento basato su second chance su una coda FIFO. Nel caso in cui la pagina non sia nella TLB e il Bit di riferimento sia uguale a 0, questa può essere sostituita; nel caso in cui il Bit di riferimento sia uguale ad 1, esso viene settato a 0 e si continua la ricerca in modo circolare.
@@ -116,62 +120,68 @@ struct pt_entry {
 Le funzioni preseneti in [pt.c](./kern/vm/pt.c)
 Queste funzioni vengono definite in [pt.h](./kern/include/pt.h) e servono a inizializzare, effettuare conversioni di indirizzi
 
-#### Creazione
-___pt_init___ : inizializza la page table
+##### pt_init
+inizializza la page table
 - Calcola il numero di frame disponibili nella RAM.
 - Alloca memoria per le entries della page table e imposta le strutture di sincronizzazione (lock e condition variable).
 - Inizializza ogni entry della page table con valori predefiniti e assegna i lock e le variabili di condizione a ciascuna entry.
 
-#### Copia
+##### copy_pt_entries
+copiare all'interno della PT o del file di swap tutte le pagine del vecchio pid per il nuovo
 
-void copy_pt_entries(pid_t, pid_t); copiare all'interno della PT o del file di swap tutte le pagine del vecchio pid per il nuovo
+##### prepare_copy_pt
+setta a uno tutti i bit SWAP relativi al pid passato
 
-void prepare_copy_pt(pid_t); setta a uno tutti i bit SWAP relativi al pid passato
+##### end_copy_pt
+setta a zero tutti i bit SWAP relativi al pid passato
 
-void end_copy_pt(pid_t); setta a zero tutti i bit SWAP relativi al pid passato
 
+##### get_page
+funzione per ottenere la pagina, a sua volta chiama pt_get_paddr o findspace per cercare spazio libero nella page table
 
-#### Gestione pagine
-___get_page___ : funzione per ottenere la pagina, a sua volta chiama pt_get_paddr o findspace per cercare spazio libero nella page table
+##### pt_load_page
+carica una nuova pagina dall'elf file. Se la page table è piena, seleziona la pagina da rimuovere usando l'algoritmo second-chance e lo salva nell swap file.
 
-___pt_load_page___ : carica una nuova pagina dall'elf file. Se la page table è piena, seleziona la pagina da rimuovere usando l'algoritmo second-chance e lo salva nell swap file.
+##### free_pages
+rimuove tutte le pagine associate ad un processo quando termina
 
-___free_pages(pid_t)___ rimuove tutte le pagine associate ad un processo quando termina
-##### Ricerca pagina
-___findspace___ : scorre la page table cercando una pagina libera.
+##### findspace
+scorre la page table cercando una pagina libera.
 
-___find_victim___ : cerca una "vittima" da rimuovere dalla memoria quando è necessario caricare una nuova pagina
+##### find_victim
+cerca una "vittima" da rimuovere dalla memoria quando è necessario caricare una nuova pagina
 - Scorre la page table e cerca pagine che non sono in uso
 
 
-#### Gestione pagine contigue
-___get_contiguous_pages___ :  alloca un gruppo  di pagine consecutive nella memoria fisica
+##### get_contiguous_pages
+alloca un gruppo  di pagine consecutive nella memoria fisica
 - se necessario, trova vittime per creare spazio
 
-___free_contiguous_pages___ : liberare le pagine contigue allocate nella ipt per un determinato indirizzo virtuale
+##### free_contiguous_pages_
+liberare le pagine contigue allocate nella ipt per un determinato indirizzo virtuale
+
+##### pt_get_paddr
+converte un indirizzo logico in un indirizzo fisico 
+
+##### update_tlb_bit
+avvisa che un frame (indirizzo virtuale) è stato rimosso dalla TLB.
 
 
+#### hash table
 
+##### hashtable_init
 
-#### Traduzione di indirizzi
-___pt_get_paddr___ : converte un indirizzo logico in un indirizzo fisico 
+##### add_in_hash(
+aggiungere un blocco alla hash table prendendolo da unused_ptr_list
 
-#### Utils
+##### get_index_from_hash
+ottenere l'indice della hash table
 
-___update_tlb_bit___ : avvisa che un frame (indirizzo virtuale) è stato rimosso dalla TLB.
+##### remove_from_hash
+rimuove una lista di blocchi dalla page_Table e la aggiunge alla lista di blocchi liberi
 
-
-#### Gestione hash table
-
-void hashtable_init(void);
-
-void add_in_hash(vaddr_t, pid_t, int); aggiungere un blocco alla hash table prendendolo da unused_ptr_list
-
-int get_index_from_hash(vaddr_t, pid_t); ottenere l'indice della hash table
-
-void remove_from_hash(vaddr_t, pid_t); rimuove una lista di blocchi dalla page_Table e la aggiunge alla lista di blocchi liberi
-
-int get_hash_func(vaddr_t, pid_t); calcola l'entry della hash table usando una funzione di hash
+##### get_hash_func
+calcola l'entry della hash table usando una funzione di hash
 
 
 ### Coremap (g1)
@@ -183,21 +193,20 @@ Queste funzioni vengono definite in [coremap.h](./kern/include/coremap.h) e serv
 
 #### Implementazione
 
-int get_frame(void); ottenere un frame libero   
+##### get_frame
+ottenere un frame libero   
 
-void free_frame(int); liberare un frame
+##### free_frame
+liberare un frame
 
-void bitmap_init(void); inizializzare la bitmap
+##### bitmap_init 
+inizializzare la bitmap
 
-void destroy_bitmap(void); distruggere la bitmap
+##### destroy_bitmap
+distruggere la bitmap
 
-int bitmap_is_active(void); verifica se la bitmap è attiva
-
-#### Inizializzazione
-
-#### Terminazione
-
-#### Kernel: allocazione e dealocalizzazione pagine
+##### bitmap_is_active
+verifica se la bitmap è attiva
 
 
 ### TLB Management (g2)
@@ -217,7 +226,7 @@ Il codice relativo alla gestione di questa sezione è presente in:
  kern/vm/vm_tlb.c
  ```
 
-#### vm_fault
+##### vm_fault
 Gestisce i "faults" della memoria virtuale che si verificano quando un processo accede a un indirizzo di memoria non presente nella TLB.
 A seconda del tipo di fault (lettura, scrittura, o tentativo di scrittura su una pagina di sola lettura), la funzione adotta azioni specifiche:
 
@@ -270,7 +279,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress){
     return 0;
 }
 ```
-#### tlb_insert
+##### tlb_insert
 
 gestisce l'inserimento di una nuova mappatura nella **TLB**. Prende un indirizzo virtuale (`faultvaddr`) e il corrispondente indirizzo fisico (`faultpaddr`) e cerca una posizione libera nella TLB:
 
@@ -321,7 +330,7 @@ int tlb_insert(vaddr_t faultvaddr, paddr_t faultpaddr){
     return 0;
 }
 ```
-#### tlb_invalidate_entry
+##### tlb_invalidate_entry
 
 Si occupa della ricerca della rispettiva entry nella tlb per poi invalidarla impostando i bit a 0.
 ```c
