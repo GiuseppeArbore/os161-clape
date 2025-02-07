@@ -477,29 +477,29 @@ Di seguito si riportano le statistiche registrate per ogni test:
 |ctest|||||||||||
 |ALTRO|||||||||||
 
-### Glossario statistiche: TODO INSERIRE NOMI NOSTRI e controllare
+### Glossario statistiche: 
 
-Le seguenti statistiche sono state collezionale (Aggiungiamo i nomi delle variabili):
+Le seguenti statistiche sono state collezionale:
 
-1. **TLB Faults -** (`nome nostro`)
+1. **TLB Faults -** (`tlb_faults`)
     - Numero totale di miss nella TLB.
-2. **TLB Faults with Free -** (`nome nostro`)
+2. **TLB Faults with Free -** (`tlb_free_faults`)
     - Il numero di miss nella TLB che causano un inserimento in uno spazio vuoto della TLB. (spazio della TLB in cui si può aggiungere una nuova entry senza bisogno di rimpiazzamento)
-3. **TLB Faults with Replace  -** (`nome nostro`)
+3. **TLB Faults with Replace  -** (`tlb_replace_faults`)
     - Il numero di miss nella TLB che causa la scelta di una vittima da sovrascrivere con una nuova entry.
-4. **TLB Invalidations -**  (`nome nostro`)
+4. **TLB Invalidations -**  (`tlb_invalidations`)
     - Il numero di volte in xui l'intera TLB viene invalidata. L'operazione è eseguita ogni volta che avviene uno switch di processo.
-5. **TLB Reloads** (`nome nostro`)
+5. **TLB Reloads** (`tlb_reloads`)
     - Il numero di miss nella TLB causato da pagine che sono già in memoria.
-6. **Page Faults (Zeroed)** - (`nome nostro`)
+6. **Page Faults (Zeroed)** - (`age_zeroed_faults`)
     - Il numero di miss nella TLB che richiede una nuova pagina inizializzata a zero.
-7. **Page Faults (Disk)**  - (`nome nostro`)
+7. **Page Faults (Disk)**  - (`page_disk_faults`)
     - Il numero di miss nella TLB che richiede il caricamento di una pagina dal disco.
-8. **Page Faults From Elf** - (`nome nostro`)
+8. **Page Faults From Elf** - (`page_elf_faults`)
     - Il numero di Page Faults che richiede una pagina dal file ELF.
-9. **Page Faults from Swapfile**  - (`nome nostro`)
+9. **Page Faults from Swapfile**  - (`page_swapfile_faults`)
     - Il numero di page fault che richiede ottenere una pagina dallo swap file.
-10. **Swapfile Writes**  - (`nome nostro`)
+10. **Swapfile Writes**  - (`swapfile_writes`)
     - Il numero di page faults che richiede scrivere una pagina nello swap file.
    
 ### Relazione tra statistiche
