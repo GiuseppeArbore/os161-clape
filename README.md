@@ -57,30 +57,30 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 
 ```
 
-##### as_create
+#### as_create
 crea un nuovo spazio di indirizzi e alloca memoria per la struttura addrspace e ne inizializza i campi
 
-##### as_destroy
+#### as_destroy
 libera la memoria associata a uno spazio di indirizzi: 
 - all'interno è implementato un conteggio dei riferimenti al file, nel caso in cui questo sia 1, il file viene effettivamente chiuso; in caso contrario, viene semplicemente decrementato il conteggio
 
-##### as_copy
+#### as_copy
 duplica uno spazio di indirizzi esistente da un processo a un altro. 
 - È utile per il fork di un processo, copiando le informazioni di memoria necessarie al nuovo processo.
 
-##### as_activate
+#### as_activate
 attiva lo spazio di indirizzi corrente per il processo in esecuzione e invalida la TLB per evitare di usare traduzioni errate appartenenti ad un vecchio processo.
 
-##### as_define_region
+#### as_define_region
 definisce una nuova regione di memoria in uno spazio di indirizzi, imposta la virtual_base e la dimensione.
 
-##### as_define_stack
+#### as_define_stack
 Definisce lo spazio per lo stack utente in uno spazio di indirizzi, inizializzando il puntatore allo stack
 
-##### as_prepare_load
+#### as_prepare_load
 prepara il caricamento dei segmenti di memoria nell'address space.
 
-##### as_complete_load
+#### as_complete_load
 completa caricamento dei segmenti di memoria.
 
 ### Page table (g1):
@@ -91,7 +91,6 @@ Le pagine interessate in operazioni di I/O non vengono considerate in quanto le 
 Per quanto riguarda le pagine interessate nella fork, viene controllato lo swap bit, un loro spostamento dalla tabella delle pagine nel mezzo di una fork potrebbe causare incongruenze che potrebbero portare a pagine non copiate. Per evitare questo problema, si ferma la situazione all'inizio del fork fino a quando non è stato completata con successo. TODO: Aggiunger kmalloc
 Per quanto riguarda le pagine kmalloc (TODO), queste non possono essere spostate in quanto si trovano nello spazio di indirizzidel kernel che non accedere alla page table per tradurre l'indirizzo virtuale in quello fisico.
 In aggiunta, quando una pagina viene rimossa dalla TLB, il suo reference bit viene settato a 1 in modo tale da evitare che venga selezionata come una vittima in quanto potrebbe essere acceduta nel tempo seguente dato che le pagine presenti nell TLB sono quelle accedute più di recente.
-
 
 
 La page table è strutturata nel seguente modo:
@@ -120,67 +119,63 @@ struct pt_entry {
 Le funzioni preseneti in [pt.c](./kern/vm/pt.c)
 Queste funzioni vengono definite in [pt.h](./kern/include/pt.h) e servono a inizializzare, effettuare conversioni di indirizzi
 
-##### pt_init
+#### pt_init
 inizializza la page table
 - Calcola il numero di frame disponibili nella RAM.
 - Alloca memoria per le entries della page table e imposta le strutture di sincronizzazione (lock e condition variable).
 - Inizializza ogni entry della page table con valori predefiniti e assegna i lock e le variabili di condizione a ciascuna entry.
 
-##### copy_pt_entries
+#### copy_pt_entries
 copiare all'interno della PT o del file di swap tutte le pagine del vecchio pid per il nuovo
 
-##### prepare_copy_pt
+#### prepare_copy_pt
 setta a uno tutti i bit SWAP relativi al pid passato
 
-##### end_copy_pt
+#### end_copy_pt
 setta a zero tutti i bit SWAP relativi al pid passato
 
-
-##### get_page
+#### get_page
 funzione per ottenere la pagina, a sua volta chiama pt_get_paddr o findspace per cercare spazio libero nella page table
 
-##### pt_load_page
+#### pt_load_page
 carica una nuova pagina dall'elf file. Se la page table è piena, seleziona la pagina da rimuovere usando l'algoritmo second-chance e lo salva nell swap file.
 
-##### free_pages
+#### free_pages
 rimuove tutte le pagine associate ad un processo quando termina
 
-##### findspace
+#### findspace
 scorre la page table cercando una pagina libera.
 
-##### find_victim
+#### find_victim
 cerca una "vittima" da rimuovere dalla memoria quando è necessario caricare una nuova pagina
 - Scorre la page table e cerca pagine che non sono in uso
 
-
-##### get_contiguous_pages
+#### get_contiguous_pages
 alloca un gruppo  di pagine consecutive nella memoria fisica
 - se necessario, trova vittime per creare spazio
 
-##### free_contiguous_pages_
+#### free_contiguous_pages_
 liberare le pagine contigue allocate nella ipt per un determinato indirizzo virtuale
 
-##### pt_get_paddr
+#### pt_get_paddr
 converte un indirizzo logico in un indirizzo fisico 
 
-##### update_tlb_bit
+#### update_tlb_bit
 avvisa che un frame (indirizzo virtuale) è stato rimosso dalla TLB.
 
+---
+#### hashtable_init
 
-#### hash table
-
-##### hashtable_init
-
-##### add_in_hash(
+#### add_in_hash(
 aggiungere un blocco alla hash table prendendolo da unused_ptr_list
 
-##### get_index_from_hash
+#### get_index_from_hash
 ottenere l'indice della hash table
 
-##### remove_from_hash
+#### remove_from_hash
 rimuove una lista di blocchi dalla page_Table e la aggiunge alla lista di blocchi liberi
 
-##### get_hash_func
+#### get_hash_func
 calcola l'entry della hash table usando una funzione di hash
 
 
@@ -193,21 +188,20 @@ Queste funzioni vengono definite in [coremap.h](./kern/include/coremap.h) e serv
 
 #### Implementazione
 
-##### get_frame
+#### get_frame
 ottenere un frame libero   
 
-##### free_frame
+#### free_frame
 liberare un frame
 
-##### bitmap_init 
+#### bitmap_init 
 inizializzare la bitmap
 
-##### destroy_bitmap
+#### destroy_bitmap
 distruggere la bitmap
 
-##### bitmap_is_active
+#### bitmap_is_active
 verifica se la bitmap è attiva
-
 
 ### TLB Management (g2)
 In OS161, ogni voce della TLB include un numero di pagina virtuale (20 bit), un numero di pagina fisica (20 bit) e cinque campi, di cui gli usati sono:
@@ -226,7 +220,7 @@ Il codice relativo alla gestione di questa sezione è presente in:
  kern/vm/vm_tlb.c
  ```
 
-##### vm_fault
+#### vm_fault
 Gestisce i "faults" della memoria virtuale che si verificano quando un processo accede a un indirizzo di memoria non presente nella TLB.
 A seconda del tipo di fault (lettura, scrittura, o tentativo di scrittura su una pagina di sola lettura), la funzione adotta azioni specifiche:
 
@@ -279,7 +273,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress){
     return 0;
 }
 ```
-##### tlb_insert
+#### tlb_insert
 
 gestisce l'inserimento di una nuova mappatura nella **TLB**. Prende un indirizzo virtuale (`faultvaddr`) e il corrispondente indirizzo fisico (`faultpaddr`) e cerca una posizione libera nella TLB:
 
@@ -330,7 +324,7 @@ int tlb_insert(vaddr_t faultvaddr, paddr_t faultpaddr){
     return 0;
 }
 ```
-##### tlb_invalidate_entry
+#### tlb_invalidate_entry
 
 Si occupa della ricerca della rispettiva entry nella tlb per poi invalidarla impostando i bit a 0.
 ```c
