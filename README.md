@@ -429,14 +429,13 @@ void reorder_swapfile(void){
 
 ## Test
 ---
-Per verificare l'effettivo funzionamento del sistema, sono stati usati i test già presenti all'interno di os161:
+Per verificare l'effettivo funzionamento del sistema, sono stati usati i test già presenti all'interno di os161: TODO CLAPE
 - palin: 
 - matmult:
 - huge:
 - sort:
 - forktest:
 - bigfork:
-- parallelvm:
 - ctest:
 
 Inoltre, per verificare le funzioni base del kernel fossero già correttamente implementate, sono stati eseguiti i seguenti test:
@@ -451,14 +450,13 @@ Di seguito si riportano le statistiche registrate per ogni test:
 
 | Nome test | TLB faults | TLB faults (free) | TLB faults (replace) | TLB invalidations | TLB reloads | Page faults (zeroed) | Page faults (disk) | Page faults (ELF) | Page faults (swapfile) | Swapfile writes |
 |:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-|palin|||||||||||
-|matmult|||||||||||
-|huge|||||||||||
-|sort|||||||||||
-|forktest|||||||||||
-|parrelevm|||||||||||
-|bigfork|||||||||||
-|ctest|||||||||||
+|palin|5|5|0|1|0|1|4|4|0|0|
+|matmult|821|64|757|1|66|1|754|382|372|402|
+|huge|3595|64|3531|1|403|1|3191|514|2677|2839|
+|sort|1953|64|1889|1|1660|1|292|292|0|0|
+|forktest|243|243|0|229|230|1|12|4|8|9|
+|bigfork|27930|27930|0|101559|25250|1|2679|33|2646|2157|
+|ctest|125246|64|125182|1|124986|1|259|259|0|0|
 |ALTRO|||||||||||
 
 
