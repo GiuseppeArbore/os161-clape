@@ -3,10 +3,7 @@
 ### Introduzione
 Il progetto ha l'obbiettivo di espandere il modulo della gestione della memoria (dumbvm), sostituendolo completamente con un gestore di memoria virtuale più avanzato, basato sulla tabella delle pagine dei progetti. 
 Il progetto richiede inoltre di lavorare sulla TLB (Translation Lookaside Buffer).
-# TODO: vogliamo nominare anche lo swapfile?
-
 Il progetto è stato svolto nella variante C1.2 che prevede l'introduzione di una __Inverted Page Table__ con una hash table per velocizzare la ricerca.
-# CACA VERIFICA QUELLO CHE HO SCRITTO SOPRA TODO
 
 ## Composizione e suddivisione del lavoro
 
