@@ -182,11 +182,7 @@ calcola l'entry della hash table usando una funzione di hash
 ### Coremap (g1)
 La coremap è una componente fondamentale per la gestione della memoria fisica all'interno del sistema di memoria virtuale. Questa struttura dati tiene traccia dello stato di ogni pagina in memoria fisica, consentendo al sistema di sapere quali pagine sono attualmente in uso, quali sono libere e quali devono essere sostituite o recuperate dal disco. 
 Le funzioni preseneti in [coremap.c](./kern/vm/coremap.c)
-Queste funzioni vengono definite in [coremap.h](./kern/include/coremap.h) e servono a 
-
-#### Struttura dati
-
-#### Implementazione
+Queste funzioni vengono definite in [coremap.h](./kern/include/coremap.h).
 
 #### get_frame
 ottenere un frame libero   
