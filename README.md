@@ -29,7 +29,7 @@ Per gestire la terminazione di un processo, vengono cancellate le informazioni d
 
 L'address space è diviso in due segmenti: data e stack.
 #### Struttura dati
-```
+```c
 struct addrspace {
         vaddr_t as_vbase1;
         size_t as_npages1;
@@ -47,7 +47,7 @@ struct addrspace {
 
 #### Implementazione
 Le funzioni presenti in [addrespace.c](./kern/vm/addrespace.c) si occupano della gestione degli spazi di indirizzi e delle operazioni di memoria virtuale per OS/161, le loro definizioni sono in [addrespace.h](./kern/include/addrspace.h).
-```
+```c
 struct addrspace *as_create(void);
 int               as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid);
 void              as_activate(void);
