@@ -346,7 +346,7 @@ int tlb_invalidate_entry(paddr_t paddr){
 `tlb_invalidate_all` è stata anche creata per gestire al meglio l'invalidazione delle pagine al momento del cambio di contesto.
 Dopo aver notato che as_activate viene chiamata per ogni thread switch si è aggiunto un controllo sul pid del processo corrente in questa funzione per accettarsi che sia  cambiato il processo e non solo in thread.
 
-❗ The utility functions `tlb_read`, `tlb_writes` e le maschere come ***TLBLO_VALID*** and ***TLBLO_DIRTY*** sono definite in tlb.h
+❗Le utility functions `tlb_read`, `tlb_writes` e le maschere come ***TLBLO_VALID*** and ***TLBLO_DIRTY*** sono definite in tlb.h
 
 ### SEGMENTS (g2)
 Questa senzione affronta come gestire correttamente i page fault. Quando si verifica un page fault, è necessario caricare una pagina in un indirizzo fisico specifico. Questo caricamento può avvenire sia dal file ELF sia dal file di swap.
