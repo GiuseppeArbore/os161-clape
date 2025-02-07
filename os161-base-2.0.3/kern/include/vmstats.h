@@ -6,13 +6,14 @@
 #include <spinlock.h>
 
 /* COSTANTI PER I TIPI DI FAULT */
-#define  FREE_FAULT 0
-#define  REPLACE_FAULT 1
+#define FAULT 0
+#define  FREE_FAULT 1
+#define  REPLACE_FAULT 2
 
-#define  ZEROED_FAULT 0
-#define  DISK_FAULT 1
-#define  ELF_FAULT 2
-#define  SWAPFILE_FAULT 3
+#define  ZEROED_FAULT 3
+#define  DISK_FAULT 4
+#define  ELF_FAULT 5
+#define  SWAPFILE_FAULT 6
 
 /*
 * Struttura dati per salvare statistiche

@@ -25,7 +25,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress){
     faultaddress &= PAGE_FRAME; // Estraggo l'indirizzo del frame che ha causato l'errore (non era presente nella TLB)
 
     /* Aggiorno le statistiche */
-    add_tlb_fault(-1);
+    add_tlb_fault(FAULT);
     /* Estraggo l'indirizzo virtuale della pagina corrispondente */
     switch (faulttype)
     {
@@ -122,7 +122,7 @@ int tlb_insert(vaddr_t faultvaddr, paddr_t faultpaddr){
     update_tlb_bit(prevHi, curproc->p_pid); //notifico alla pt
     tlb_write(hi, lo, entry);
     /*update tlb faults replace*/
-    add_tlb_fault(FREE_FAULT); 
+    add_tlb_fault(REPLACE_FAULT); 
     return 0;
 
 }
