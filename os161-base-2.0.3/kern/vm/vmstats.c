@@ -23,7 +23,8 @@ void add_tlb_fault(int faulttype)
     switch (faulttype)
     {
     case FAULT:
-        stats.tlb_faults++;    
+        stats.tlb_faults++;  
+        break;  
     case FREE_FAULT:
         stats.tlb_free_faults++;
         break;
@@ -31,6 +32,7 @@ void add_tlb_fault(int faulttype)
         stats.tlb_replace_faults++;
         break;
     default:
+        kprintf("Invalid fault type");
         break;
     }
 
@@ -62,11 +64,9 @@ void add_page_fault(int faulttype)
         stats.page_disk_faults++;
         break;
     case ELF_FAULT:
-        stats.page_disk_faults++;
         stats.page_elf_faults++;
         break;
     case SWAPFILE_FAULT:
-        stats.page_disk_faults++;
         stats.page_swapfile_faults++;
         break;
     default:
@@ -98,6 +98,7 @@ void stats_print(void)
     kprintf("Swapfile writes: %d\n", stats.swapfile_writes);
 
     stats_verify();
+    stats_init();
 }
 
 void stats_verify(void){
