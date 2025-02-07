@@ -19,7 +19,7 @@
 * Struttura dati per salvare statistiche
 */
 
-//todo: aggiungere spinlock se serve
+
 struct stats
 {
     uint32_t tlb_faults; //numero di miss TLB totali (non inclusi fault che causano crash)

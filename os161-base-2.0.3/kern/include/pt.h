@@ -112,7 +112,7 @@ paddr_t get_page(vaddr_t);
 *
 * @return NULL in caso di errore, altrimenti l'indirizzo fisico
 */
-paddr_t pt_load_page(vaddr_t, pid_t); //TODO: CLAPE: capire se serve
+paddr_t pt_load_page(vaddr_t, pid_t); 
 
 /**
 * Questa funzione rimuove tutte le pagine associate ad un processo quando termina
