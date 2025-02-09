@@ -8,7 +8,7 @@ Il progetto è stato svolto nella variante C1.2 che prevede l'introduzione di un
 ## Composizione e suddivisione del lavoro
 
 Il lavoro è stato suddiviso tra i componenti del gruppo nel seguente modo:
-- g1: Giuseppe Arbore (s329535): implementato parti di codice per gestire la struttura e l'accesso alla memoria virtuale di un processo assicurandone la separazione tra diversi processi (addrespace), per tenere traccia delle pagine fisiche disponibili e quelle in uso, permettendo una gestione efficiente della memoria fisica (coremap) e fornire la mappatura tra inidirizzi virtuali e fisici in modo tale da gestire la memoria virtuale e la paginazione (pt)
+- g1: Giuseppe Arbore (s329535): implementato parti di codice per gestire la struttura e l'accesso alla memoria virtuale di un processo assicurandone la separazione tra diversi processi (addrespace), per tenere traccia delle pagine fisiche disponibili e quelle in uso, permettendo una gestione efficiente della memoria fisica (coremap) e fornire la mappatura tra inidirizzi virtuali e fisici in modo tale da gestire la memoria virtuale e la paginazione (page table)
 - g2: Claudia Maggiulli (s332252): _cosa hai fatto tu a grandi linee_ TODO
 
 Per una miglior coordinazione si è usata una repository condivisa su GitHub e un file condiviso su Notion in modo tale di tener traccia dei vari progressi.
@@ -26,7 +26,6 @@ Nella struttura dell'address space sono anche presenti gli offset relativi a que
 
 Inoltre, per la corretta terminazione di un processo, vengono rimosse le informazioni relative al processo dalla tabella delle pagine e dal file di swap. Per gestire correttamente la fork, viene utilizzata la funzione as_copy(), che copia le pagine del processo nella tabella delle pagine del nuovo processo, garantendo la coerenza tra i processi.
 
-#TODO: Peppe, verifica il funzionamento della funzione as_copy().
 
 L'address space è diviso in due segmenti: data e stack.
 #### Struttura dati
@@ -55,37 +54,116 @@ void              as_activate(void);
 void              as_deactivate(void);
 void              as_destroy(struct addrspace *);
 int               as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz, int readable, int writeable, int executable);
-int               as_prepare_load(struct addrspace *as);
-int               as_complete_load(struct addrspace *as);
 int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 
 ```
 
 #### as_create
 Crea un nuovo spazio di indirizzi, alloca memoria per la struttura addrspace e ne inizializza i campi.
+```c
+	struct addrspace *as;
+
+	as = kmalloc(sizeof(struct addrspace));
+	if (as == NULL) {
+		return NULL;
+	}
+
+	as->as_vbase1 = 0;
+	as->as_npages1 = 0;
+	as->as_vbase2 = 0;
+	as->as_npages2 = 0;
+
+	return as;
+```
 
 #### as_destroy
 libera la memoria associata a uno spazio di indirizzi: 
 - all'interno è implementato un conteggio dei riferimenti al file, nel caso in cui questo sia 1, il file viene effettivamente chiuso; in caso contrario, viene semplicemente decrementato il conteggio
+```c
+	if(as->v->vn_refcount==1){
+		vfs_close(as->v);
+	}
+	else{
+		as->v->vn_refcount--;
+	}
+
+	kfree(as);
+```
 
 #### as_copy
 Copia un addrespace esistente, duplicando uno spazio di indirizzi esistente da un processo a un altro. 
 - È utile per il fork di un processo, copiando le informazioni di memoria necessarie al nuovo processo.
+
+```c
+	struct addrspace *newas;
+
+	newas = as_create();
+	if (newas==NULL) {
+		return ENOMEM;
+	}
+
+	newas->as_vbase1 = old->as_vbase1;
+	newas->as_npages1 = old->as_npages1;
+	newas->as_vbase2 = old->as_vbase2;
+	newas->as_npages2 = old->as_npages2;
+	newas->ph1 = old->ph1;
+	newas->ph2 = old->ph2;
+	newas->v = old->v;
+	old->v->vn_refcount++;
+	newas->initial_offset1 = old->initial_offset1;
+	newas->initial_offset2 = old->initial_offset2;
+
+	prepare_copy_pt(old_pid);
+	copy_swap_pages(new_pid, old_pid);
+	copy_pt_entries(old_pid, new_pid);
+	end_copy_pt(old_pid);
+
+	*ret = newas;
+	return 0;
+
+```
 
 #### as_activate
 Attiva lo spazio di indirizzi corrente per il processo in esecuzione e invalida la TLB per evitare di usare traduzioni errate appartenenti ad un vecchio processo.
 
 #### as_define_region
 Definisce una nuova regione di memoria in uno spazio di indirizzi, imposta la virtual_base e la dimensione.
+```c
+	size_t npages;
+	size_t initial_offset;
+
+	/* Allineo la regione*/
+	memsize += vaddr & ~(vaddr_t)PAGE_FRAME; // aggiungo la parte non allineata dopo aver isolato l'offset di vaddr
+	initial_offset = vaddr % PAGE_SIZE;
+	vaddr &= PAGE_FRAME;
+
+	// verifico la lunghezza
+	memsize = (memsize + initial_offset + PAGE_SIZE - 1) & PAGE_FRAME;
+	npages = memsize / PAGE_SIZE;
+
+	if (as->as_vbase1 == 0) {
+		DEBUG(DB_VM, "as_define_region, text : vaddr 0x%x \n", vaddr);
+		as->as_vbase1 = vaddr;
+		as->as_npages1 = npages;
+		as->initial_offset1 = initial_offset;
+		return 0;
+	}
+
+	if (as->as_vbase2 == 0) {
+		DEBUG(DB_VM, "as_define_region, data : vaddr 0x%x \n", vaddr);
+		as->as_vbase2 = vaddr;
+		as->as_npages2 = npages;
+		as->initial_offset2 = initial_offset;
+		return 0;
+	}
+
+	kprintf("dumbvm: Warning : Too many regions\n");
+	return ENOSYS;
+```
 
 #### as_define_stack
 Definisce lo spazio per lo stack utente in uno spazio di indirizzi, inizializzando il puntatore allo stack
 
-#### as_prepare_load
-prepara il caricamento dei segmenti di memoria nell'address space.
-
-#### as_complete_load
-completa caricamento dei segmenti di memoria.
 
 ### Page table (g1):
 La page table utilizzata è un'Inverted Page Table, che associa un indirizzo virtuale e l'ID del processo alla corrispondente entry in RAM. Questo approccio riduce il consumo di memoria rispetto a una tradizionale page table, poiché mantiene una sola tabella globale invece di una per ogni processo. La gestione del rimpiazzo delle pagine segue un algoritmo basato sulla tecnica del Second Chance, combinata con una coda FIFO.
