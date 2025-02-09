@@ -180,24 +180,23 @@ calcola l'entry della hash table usando una funzione di hash
 
 
 ### Coremap (g1)
-La coremap è una componente fondamentale per la gestione della memoria fisica all'interno del sistema di memoria virtuale. Questa struttura dati tiene traccia dello stato di ogni pagina in memoria fisica, consentendo al sistema di sapere quali pagine sono attualmente in uso, quali sono libere e quali devono essere sostituite o recuperate dal disco. 
+La coremap è una componente fondamentale per la gestione della memoria fisica all'interno del sistema di memoria virtuale. Questa struttura dati tiene traccia dei frame fisici disponibili nella memoria RAM del sistema. Per rappresentare lo stato dei frame è stato usato un array di interi bitmapFreeFrames dove ogni elemento rappresenta un frame fisico, in particolare se il valore è 0, il frame è libero; se il valore è 1, il frame è occupato.
 Le funzioni preseneti in [coremap.c](./kern/vm/coremap.c)
 Queste funzioni vengono definite in [coremap.h](./kern/include/coremap.h).
 
-#### get_frame
-ottenere un frame libero   
-
-#### free_frame
-liberare un frame
-
 #### bitmap_init 
-inizializzare la bitmap
+Funzione usata per inizializzare la bitmap, allocando e inizializzando a 0 l'array bitmapFreeFrames. Dopo aver allocato e inizializzato imposta ad 1 il flag per indicare che la coremap sia attiva.
+
+```c
+    nframes = mainbus_ramsize() / PAGE_SIZE ; // calcola il numero di frame fisici
+    bitmapFreeFrames = kmalloc(nframes * sizeof(int)); // alloca la bitmap
+```
 
 #### destroy_bitmap
-distruggere la bitmap
+Disattiva la coremap impostando a 0 il flagger indicare che la coremap sia attiva e liberando la memoria allocata per la bitmap. 
 
 #### bitmap_is_active
-verifica se la bitmap è attiva
+Verifica se la bitmap è attiva restituiendo il valore del flag bitmapFtrrFramesActive.
 
 ### TLB Management (g2)
 In OS161, ogni voce della TLB include un numero di pagina virtuale (20 bit), un numero di pagina fisica (20 bit) e cinque campi, di cui gli usati sono:
