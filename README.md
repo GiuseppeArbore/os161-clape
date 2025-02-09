@@ -122,7 +122,7 @@ Queste funzioni vengono definite in [pt.h](./kern/include/pt.h) e servono a iniz
 #### pt_init
 inizializza la page table
 - Calcola il numero di frame disponibili nella RAM.
-- Alloca memoria per le entries della page table e imposta le strutture di sincronizzazione (lock e condition variable).
+- Alloca memoria per le entry della page table e inizializza le strutture di sincronizzazione (lock e condition variable).
 - Inizializza ogni entry della page table con valori predefiniti e assegna i lock e le variabili di condizione a ciascuna entry.
 
 #### copy_pt_entries
@@ -135,30 +135,31 @@ setta a uno tutti i bit SWAP relativi al pid passato
 setta a zero tutti i bit SWAP relativi al pid passato
 
 #### get_page
-funzione per ottenere la pagina, a sua volta chiama pt_get_paddr o findspace per cercare spazio libero nella page table
+Funzione per ottenere la pagina, a sua volta chiama pt_get_paddr o findspace per cercare spazio libero nella page table
 
 #### pt_load_page
 carica una nuova pagina dall'elf file. Se la page table è piena, seleziona la pagina da rimuovere usando l'algoritmo second-chance e lo salva nell swap file.
 
 #### free_pages
-rimuove tutte le pagine associate ad un processo quando termina
+Libera tutte le pagine associate ad un processo quando termina, rimuove le entry dalla hash table e resetta i bit di controllo.
 
 #### findspace
-scorre la page table cercando una pagina libera.
+Cerca una pagina libera nella tabella che non sia valida, in IO, in swap o riservata per KMALLOC.
 
 #### find_victim
-cerca una "vittima" da rimuovere dalla memoria quando è necessario caricare una nuova pagina
+Implementa un meccanismo per trovare una pagina "vittima" da sostituire, controllando il bit di riferimento e altre condizioni.
 - Scorre la page table e cerca pagine che non sono in uso
+- La pagina vittima viene salvata nello spazio di swap se necessario, e la nuova pagina viene aggiunta alla hash table.
 
 #### get_contiguous_pages
-alloca un gruppo  di pagine consecutive nella memoria fisica
+Cerca e alloca un blocco di pagine consecutive nella memoria fisica
 - se necessario, trova vittime per creare spazio
 
 #### free_contiguous_pages_
 liberare le pagine contigue allocate nella ipt per un determinato indirizzo virtuale
 
 #### pt_get_paddr
-converte un indirizzo logico in un indirizzo fisico 
+Converte l'indirizzo fisico nel corrispondente indirizzo virtuale
 
 #### update_tlb_bit
 avvisa che un frame (indirizzo virtuale) è stato rimosso dalla TLB.
