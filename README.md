@@ -623,24 +623,120 @@ liberare le pagine contigue allocate nella ipt per un determinato indirizzo virt
 
 #### pt_get_paddr
 Converte l'indirizzo fisico nel corrispondente indirizzo virtuale usando la funzione get_index_from_hash
+- moltiplica l'indice restituito per la dimensione delle pagine e aggiunge l'indirizzo fisico della prima pagina, per ottenere così l'indirizzo fisico cercato.
 
-#### update_tlb_bit
-avvisa che un frame (indirizzo virtuale) è stato rimosso dalla TLB.
 
 ---
 #### hashtable_init
+```c
+    htable.size= 2 *page_table.n_entry;
+
+    htable.table = kmalloc(sizeof(struct hash_entry *) * htable.size);
+    for (int i =0; i < htable.size; i++){
+        htable.table[i] = NULL; //nessun puntatore all'interno dell'array di liste
+    }
+
+    unused_ptr_list = NULL;
+    struct hash_entry *tmp;
+    for (int j = 0; j < page_table.n_entry; j++){ //iniziallizo unused ptr list
+        tmp = kmalloc(sizeof(struct hash_entry));
+        KASSERT((unsigned int)tmp>0x80000000);
+        if (!tmp)
+        {
+            panic("Error during hash pt elements allocation");
+        }
+        tmp->next = unused_ptr_list;
+        unused_ptr_list = tmp;
+    } 
+```
 
 #### add_in_hash(
-aggiungere un blocco alla hash table prendendolo da unused_ptr_list
+Aggiunge un blocco alla hash table prendendolo da unused_ptr_list
+```c
+    int val = get_hash_func(vad, pid);
+    struct hash_entry *tmp = unused_ptr_list;
+    
+    KASSERT(tmp!=NULL);
+
+    unused_ptr_list = tmp->next;
+
+    tmp->vad = vad;
+    tmp->pid = pid;
+    tmp->ipt_entry = ipt_entry;
+    tmp->next = htable.table[val];
+
+    htable.table[val] = tmp;
+```
 
 #### get_index_from_hash
-ottenere l'indice della hash table
+Ottenere l'indice della hash table
+```c
+    int val = get_hash_func(vad, pid);
+    struct hash_entry *tmp = htable.table[val];
+    while (tmp != NULL)
+    {
+        KASSERT((unsigned int)tmp>0x80000000 && (unsigned int)tmp<=0x9FFFFFFF); //verifica che il puntatore sia in keseg0 (per accesso diretto alla mem fisica)
+        if (tmp->vad == vad && tmp->pid == pid)
+        {
+            return tmp->ipt_entry;
+        }
+        tmp = tmp->next;
+    }
+    return -1;
+```
 
 #### remove_from_hash
 rimuove una lista di blocchi dalla page_Table e la aggiunge alla lista di blocchi liberi
+```c
+    int val =  get_hash_func(v, pid);
+    DEBUG(DB_VM, "Rimuovo da hash 0x%x per il processo %d, pos %d\n", v, pid, val);
+
+    struct hash_entry *tmp = htable.table[val];
+    struct hash_entry *prev = NULL;
+
+    if (tmp == NULL){
+        panic("Errore durante la rimozione dall'hash");
+    }
+
+    if (tmp->vad == v && tmp->pid==pid){
+        tmp->vad = 0;
+        tmp->pid = 0;
+        htable.table[val] = tmp->next;
+        tmp->next = unused_ptr_list;
+        unused_ptr_list = tmp;
+
+        return;
+    }
+
+    prev = tmp;
+    tmp = tmp->next;
+
+    while (tmp != NULL){
+        if(tmp->vad == v && tmp->pid==pid){
+            tmp->vad = 0;
+            tmp->pid = 0;
+            tmp->ipt_entry = -1;
+            prev->next = tmp->next;
+            tmp->next = unused_ptr_list;
+            unused_ptr_list = tmp;
+            return;
+        }
+        prev = tmp;
+        tmp = tmp->next;
+    }
+    
+    panic("Non è stato trovato niente da rimuovere");    
+
+```
 
 #### get_hash_func
-calcola l'entry della hash table usando una funzione di hash
+Calcola l'entry della hash table usando una funzione di hash
+```c
+    int val = (((int)v) % 24) + ((((int)p) % 8) << 8);
+    val = val ^1234567891;
+    val = val % htable.size;
+    return val;
+```
 
 
 ### Coremap (g1)
