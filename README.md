@@ -207,7 +207,7 @@ struct pt_entry {
 
 
 #### Implementazione
-Le funzioni preseneti in [pt.c](./kern/vm/pt.c)
+Le funzioni sono presenti in [pt.c](./kern/vm/pt.c).
 Queste funzioni vengono definite in [pt.h](./kern/include/pt.h) e servono a inizializzare, effettuare conversioni di indirizzi
 
 #### pt_init
@@ -216,17 +216,158 @@ inizializza la page table
 - Alloca memoria per le entry della page table e inizializza le strutture di sincronizzazione (lock e condition variable).
 - Inizializza ogni entry della page table con valori predefiniti e assegna i lock e le variabili di condizione a ciascuna entry.
 
+```c
+    spinlock_acquire(&stealmem_lock);
+    int num_frames; // entry_in_frames, frames_for_pt;
+
+    num_frames = (mainbus_ramsize() - ram_stealmem(0)) / PAGE_SIZE ; //numero di frame disponibili
+
+    spinlock_release(&stealmem_lock);
+    page_table.entries = kmalloc(num_frames * sizeof(struct pt_entry));
+
+    spinlock_acquire(&stealmem_lock);
+    if(page_table.entries == NULL){
+        panic("Errore nell'allocazione della page table");
+    }
+
+    page_table.pt_lock = lock_create("pt_lock");
+    page_table.pt_cv = cv_create("pt_cv");
+    if (page_table.pt_lock == NULL || page_table.pt_cv == NULL){
+        panic("Errore nella creazione del lock o cv della page table");
+    }
+    spinlock_release(&stealmem_lock);
+
+    page_table.contiguous = kmalloc(num_frames * sizeof(int));
+    
+    spinlock_acquire(&stealmem_lock);
+    if(page_table.contiguous == NULL){
+        panic("Errore nell'allocazione del flag per le pagine contigue");
+    }
+
+    for (int i = 0; i < num_frames; i++){
+        page_table.entries[i].ctrl = 0;
+        page_table.contiguous[i] = -1;
+    }
+
+    DEBUG(DB_VM,"\nRam size :0x%x, first free address: 0x%x, memoria disponibile: 0x%x",mainbus_ramsize(),ram_stealmem(0),mainbus_ramsize()-ram_stealmem(0));
+
+    page_table.n_entry = ((mainbus_ramsize() - ram_stealmem(0)) / PAGE_SIZE) -1;
+    page_table.first_free_paddr = ram_stealmem(0);
+
+    pt_active = 1;
+    spinlock_release(&stealmem_lock)
+```
+
+
 #### copy_pt_entries
-copiare all'interno della PT o del file di swap tutte le pagine del vecchio pid per il nuovo
+Copiare all'interno della PT o del file di swap tutte le pagine del vecchio pid per il nuovo
+```c
+    int pos;
+    for (int i = 0; i < page_table.n_entry; i++)
+    {
+        if ( page_table.entries[i].pid == old 
+            && page_table.entries[i].page != KMALLOC_PAGE 
+            && GetValidityBit(page_table.entries[i].ctrl) )
+        {
+            pos = findspace();
+
+            if(pos==-1){
+                KASSERT(!GetIOBit(page_table.entries[i].ctrl));
+                KASSERT(GetSwapBit(page_table.entries[i].ctrl));
+                KASSERT(page_table.entries[i].page != KMALLOC_PAGE);
+                DEBUG(DB_VM,"Copiato dall'indirizzo pt 0x%x per il processo %d\n", page_table.entries[i].page, new);
+                store_swap(page_table.entries[i].page, new , page_table.first_free_paddr + i*PAGE_SIZE);
+
+            } else{
+                page_table.entries[pos].ctrl = SetValidityBitOne(page_table.entries[pos].ctrl);
+                page_table.entries[pos].page = page_table.entries[i].page;
+                page_table.entries[pos].pid = new;
+                add_in_hash(page_table.entries[i].page, new, pos);
+
+                memmove((void*)PADDR_TO_KVADDR(page_table.first_free_paddr+ pos*PAGE_SIZE),(void *)PADDR_TO_KVADDR(page_table.first_free_paddr + i*PAGE_SIZE), PAGE_SIZE);
+                
+                KASSERT(!GetIOBit(page_table.entries[pos].ctrl));
+                KASSERT(!GetSwapBit(page_table.entries[pos].ctrl));
+                KASSERT(!GetTlbBit(page_table.entries[pos].ctrl));
+                KASSERT(page_table.entries[pos].page != KMALLOC_PAGE);
+
+            }
+        }
+    }
+```
+
 
 #### prepare_copy_pt
-setta a uno tutti i bit SWAP relativi al pid passato
+Setta a uno tutti i bit SWAP relativi al pid passato
+```c
+    for (int i = 0; i < page_table.n_entry; i++)
+    {
+        if (page_table.entries[i].pid == pid && page_table.entries[i].page != KMALLOC_PAGE && GetValidityBit(page_table.entries[i].ctrl))
+        {
+            KASSERT(!GetIOBit(page_table.entries[i].ctrl));
+            page_table.entries[i].ctrl = SetSwapBitOne(page_table.entries[i].ctrl);
+        }
+    }
+```
 
 #### end_copy_pt
 setta a zero tutti i bit SWAP relativi al pid passato
+```c
+    for (int i = 0; i < page_table.n_entry; i++)
+    {
+        if (page_table.entries[i].pid == pid && page_table.entries[i].page != KMALLOC_PAGE && GetValidityBit(page_table.entries[i].ctrl))
+        {
+            KASSERT(GetSwapBit(page_table.entries[i].ctrl));
+            page_table.entries[i].ctrl = SetSwapBitZero(page_table.entries[i].ctrl);
+        }
+    }
+
+    lock_acquire(page_table.pt_lock);
+    cv_broadcast(page_table.pt_cv, page_table.pt_lock);
+    lock_release(page_table.pt_lock);
+```
 
 #### get_page
 Funzione per ottenere la pagina, a sua volta chiama pt_get_paddr o findspace per cercare spazio libero nella page table
+```c
+    pid_t pid = proc_getpid(curproc); // pid corrente
+    int res;
+    paddr_t phisical;
+    res = pt_get_paddr(v, pid);
+
+    if (res != -1)
+    {
+        phisical = (paddr_t) res;
+        add_tlb_reload();
+        return phisical;
+    }
+
+    DEBUG(DB_VM,"PID=%d wants to load 0x%x\n",pid,v);
+
+    int pos = findspace(v,pid); 
+    if (pos == -1) //non trovato libero, cerco vittima
+    {
+        pos = find_victim(v, pid);
+        KASSERT(pos<page_table.n_entry);
+        phisical = page_table.first_free_paddr + pos*PAGE_SIZE;
+    }
+    else{
+        KASSERT(pos<page_table.n_entry);
+        add_in_hash(v,pid,pos);
+        phisical = page_table.first_free_paddr + pos*PAGE_SIZE;
+        page_table.entries[pos].ctrl= SetValidityBitOne(page_table.entries[pos].ctrl);
+        page_table.entries[pos].ctrl= SetIOBitOne(page_table.entries[pos].ctrl);
+        page_table.entries[pos].page = v;
+        page_table.entries[pos].pid = pid;
+    }
+
+    KASSERT(page_table.entries[pos].page !=KMALLOC_PAGE);
+    load_page(v, pid, phisical);
+    page_table.entries[pos].ctrl = SetIOBitZero(page_table.entries[pos].ctrl );
+    page_table.entries[pos].ctrl = SetTlbBitOne(page_table.entries[pos].ctrl);
+
+    return phisical;
+```
 
 #### pt_load_page
 carica una nuova pagina dall'elf file. Se la page table è piena, seleziona la pagina da rimuovere usando l'algoritmo second-chance e lo salva nell swap file.
@@ -236,21 +377,252 @@ Libera tutte le pagine associate ad un processo quando termina, rimuove le entry
 
 #### findspace
 Cerca una pagina libera nella tabella che non sia valida, in IO, in swap o riservata per KMALLOC.
+```c
+    for(int i=0; i<page_table.n_entry; i++){
+        if (GetValidityBit(page_table.entries[i].ctrl) || GetIOBit(page_table.entries[i].ctrl) || GetSwapBit(page_table.entries[i].ctrl)){
+            continue;
+        }else if(page_table.entries[i].page != KMALLOC_PAGE ){ 
+            // non valido, non in uso io, non in swap, non in kmalloc
+            return i; //ritorno l'indice della pagina libera
+        }
+    }
+    return -1;
+```
 
 #### find_victim
 Implementa un meccanismo per trovare una pagina "vittima" da sostituire, controllando il bit di riferimento e altre condizioni.
 - Scorre la page table e cerca pagine che non sono in uso
 - La pagina vittima viene salvata nello spazio di swap se necessario, e la nuova pagina viene aggiunta alla hash table.
 
+```c
+    int i, start_index=lastIndex;
+    int n_iter=0;
+    int old_validity=0;
+    pid_t old_pid;
+    vaddr_t old_v;
+
+    for (i = lastIndex;; i = (i+1)%page_table.n_entry)
+    {
+        if (!GetTlbBit(page_table.entries[i].ctrl) 
+            && !GetIOBit(page_table.entries[i].ctrl) 
+            && page_table.entries[i].page != KMALLOC_PAGE
+            && !GetSwapBit(page_table.entries[i].ctrl)
+        ){
+            //se la pagina non è in tlb, non è in IO e non è in kmalloc
+            if(GetReferenceBit(page_table.entries[i].ctrl)==0){
+                //se il bit di riferimento è a 0 -> vittima trovata
+                //faccio ulteriori controlli
+                KASSERT(!GetIOBit(page_table.entries[i].ctrl));
+                KASSERT(!GetSwapBit(page_table.entries[i].ctrl));
+                KASSERT(!GetTlbBit(page_table.entries[i].ctrl));
+                KASSERT(page_table.entries[i].page != KMALLOC_PAGE);
+
+                old_pid = page_table.entries[i].pid;
+                old_validity = GetValidityBit(page_table.entries[i].ctrl);
+                old_v = page_table.entries[i].page;
+
+                page_table.entries[i].pid = pid;
+                page_table.entries[i].page = vaddr;
+                page_table.entries[i].ctrl=SetIOBitOne(page_table.entries[i].ctrl);
+                page_table.entries[i].ctrl=SetValidityBitOne(page_table.entries[i].ctrl);
+
+                if (old_validity){
+                    remove_from_hash(old_v, old_pid);
+                    store_swap(old_v, old_pid, i* PAGE_SIZE + page_table.first_free_paddr ); 
+                }
+                add_in_hash(vaddr, pid, i);
+                lastIndex = (i+1)%page_table.n_entry;
+                return i;
+            }else{
+                page_table.entries[i].ctrl = SetReferenceBitZero(page_table.entries[i].ctrl);
+            }
+        }
+        
+        /* controllo per evitare cicli infiniti, se non trovo vittime, 
+        * mi fermo e aspetto che qualcuno mi svegli (cambiamenti su condizioni delle pagine)
+        */
+
+        if((i+1) % page_table.n_entry == start_index){
+            if(n_iter<2){
+                n_iter++;
+                continue;
+            }else{
+                lock_acquire(page_table.pt_lock);
+                cv_wait(page_table.pt_cv, page_table.pt_lock);
+                lock_release(page_table.pt_lock);
+                n_iter=0;
+            }
+        }
+    }
+    panic("Non dovrebbe arrivare qui, non è riuscito a trovare vittime");
+```
+
 #### get_contiguous_pages
 Cerca e alloca un blocco di pagine consecutive nella memoria fisica
 - se necessario, trova vittime per creare spazio
 
+```c
+    DEBUG(DB_VM,"Process %d performs kmalloc for %d pages\n", curproc->p_pid,n_pages);
+    int i, j, first_pos=-1, prec=0, old_val, first_it=0;
+    vaddr_t old_vaddr;
+    pid_t old_pid;
+
+    if (n_pages>page_table.n_entry){
+        panic("Non ci sono abbastanza pagine nella page table");
+    }
+
+    for ( i = 0; i < page_table.n_entry; i++)
+    {
+        if (i!=0)
+        {
+            prec= valid_entry(page_table.entries[i-1].ctrl, page_table.entries[i-1].page);
+        }
+        if (!GetValidityBit(page_table.entries[i].ctrl) && 
+            !GetTlbBit(page_table.entries[i].ctrl) &&
+            !GetIOBit(page_table.entries[i].ctrl) &&
+            !GetSwapBit(page_table.entries[i].ctrl) &&
+            page_table.entries[i].page!=KMALLOC_PAGE && 
+            (i==0 || prec)
+        ){ 
+            first_pos=i;    //sono la prima pagina del blocco contiguo
+        }
+
+        if (first_pos>=0 && 
+            ! GetValidityBit(page_table.entries[i].ctrl) &&
+            ! GetTlbBit(page_table.entries[i].ctrl) &&
+            ! GetSwapBit(page_table.entries[i].ctrl) &&
+            page_table.entries[i].page!=KMALLOC_PAGE && 
+            ! GetIOBit(page_table.entries[i].ctrl) &&
+            i-first_pos==n_pages-1
+        )
+        {
+            //se ho trovato tutte le pagine contigue che mi servivano
+            DEBUG(DB_VM,"Kmalloc for process %d entry%d\n",curproc->p_pid,first_pos);
+            for (j=first_pos; j<=i; j++){
+                KASSERT(page_table.entries[j].page!=KMALLOC_PAGE);
+                KASSERT(!GetValidityBit(page_table.entries[j].ctrl));
+                KASSERT(!GetTlbBit(page_table.entries[j].ctrl));
+                KASSERT(!GetIOBit(page_table.entries[j].ctrl));
+                KASSERT(!GetSwapBit(page_table.entries[j].ctrl));
+                page_table.entries[i].ctrl = SetValidityBitOne(page_table.entries[j].ctrl);
+                page_table.entries[i].page=KMALLOC_PAGE;
+                page_table.entries[i].pid= curproc->p_pid;
+            }
+            page_table.contiguous[first_pos]=n_pages;
+            return first_pos*PAGE_SIZE + page_table.first_free_paddr;
+            
+        }
+
+    }
+
+    while (1)
+    {
+        for (i=lastIndex; i<page_table.n_entry; i++)
+        {
+            if (page_table.entries[i].page!=KMALLOC_PAGE &&
+                ! GetTlbBit(page_table.entries[i].ctrl) &&
+                ! GetIOBit(page_table.entries[i].ctrl) &&
+                ! GetSwapBit(page_table.entries[i].ctrl) 
+            ){
+                if (GetReferenceBit(page_table.entries[i].ctrl) 
+                    && GetValidityBit(page_table.entries[i].ctrl)
+                ){
+                    page_table.entries[i].ctrl = SetReferenceBitZero(page_table.entries[i].ctrl);
+                    continue;
+                }
+                if ( (  !GetReferenceBit(page_table.entries[i].ctrl) ||
+                        !GetValidityBit(page_table.entries[i].ctrl) 
+                        )
+                        &&
+                        (i==0 || valid_entry(page_table.entries[i-1].ctrl, page_table.entries[i-1].page))
+                    ){
+                        first_pos=i;
+                    }    
+                if( first_pos>=0 && 
+                    ( !GetReferenceBit(page_table.entries[i].ctrl) || !GetValidityBit(page_table.entries[i].ctrl)) &&
+                    i-first_pos==n_pages-1
+                ) {
+                    DEBUG(DB_VM,"Found a space for a kmalloc for process %d entry%d\n",curproc->p_pid,first_pos);
+                    for(j=first_pos; j<=i; j++){
+                        KASSERT(page_table.entries[j].page != KMALLOC_PAGE);
+                        KASSERT(!GetValidityBit(page_table.entries[j].ctrl) || !GetReferenceBit(page_table.entries[j].ctrl));
+                        KASSERT(!GetTlbBit(page_table.entries[j].ctrl));
+                        KASSERT(!GetIOBit(page_table.entries[j].ctrl));
+                        KASSERT(!GetSwapBit(page_table.entries[j].ctrl));
+                        
+                        old_pid = page_table.entries[j].pid;
+                        old_vaddr = page_table.entries[j].page;
+                        old_val = GetValidityBit(page_table.entries[j].ctrl);
+
+                        page_table.entries[j].pid = curproc->p_pid;
+                        page_table.entries[j].page = KMALLOC_PAGE;
+                        page_table.entries[j].ctrl = SetValidityBitOne(page_table.entries[j].ctrl);
+
+
+                        if (old_val)
+                        {
+                            page_table.entries[j].ctrl = SetIOBitOne(page_table.entries[j].ctrl);
+                            
+                            remove_from_hash(old_vaddr, old_pid);
+                            store_swap(old_vaddr,old_pid,j * PAGE_SIZE + page_table.first_free_paddr);
+
+                            page_table.entries[j].ctrl = SetIOBitZero(page_table.entries[j].ctrl);
+                        }
+                    }
+                    page_table.contiguous[first_pos]=n_pages;
+                    lastIndex = (i+1)%page_table.n_entry;
+                    return first_pos*PAGE_SIZE + page_table.first_free_paddr;
+                }
+            }
+        }
+        lastIndex=0;
+        if (first_it<2)
+        {
+            first_it++;
+        }else{
+            lock_acquire(page_table.pt_lock);
+            
+            cv_wait(page_table.pt_cv, page_table.pt_lock);
+        
+            lock_release(page_table.pt_lock);
+            first_it=0;
+        }
+        first_pos=-1;    
+    }
+    return ENOMEM;
+```
+
 #### free_contiguous_pages_
 liberare le pagine contigue allocate nella ipt per un determinato indirizzo virtuale
+```c
+    int i, index, niter;
+    paddr_t p = KVADDR_TO_PADDR(addr);
+    index = (p - page_table.first_free_paddr) / PAGE_SIZE;
+    niter = page_table.contiguous[index];
+
+    DEBUG(DB_VM,"Process %d performs kfree for %d pages\n", curproc?curproc->p_pid:0,niter);
+
+    for (i = index; i < index + niter; i++)
+    {
+        KASSERT(page_table.entries[i].page == KMALLOC_PAGE);
+        page_table.entries[i].ctrl = SetValidityBitZero(page_table.entries[i].ctrl);
+        page_table.entries[i].page = 0;
+    }
+
+    page_table.contiguous[index] = -1;
+
+    if(curthread->t_in_interrupt == false){
+        lock_acquire(page_table.pt_lock);
+        cv_broadcast(page_table.pt_cv,page_table.pt_lock); //Since we freed some pages, we wake up the processes waiting on the cv.
+        lock_release(page_table.pt_lock);
+    }
+    else{
+        cv_broadcast(page_table.pt_cv,page_table.pt_lock);
+    }
+```
 
 #### pt_get_paddr
-Converte l'indirizzo fisico nel corrispondente indirizzo virtuale
+Converte l'indirizzo fisico nel corrispondente indirizzo virtuale usando la funzione get_index_from_hash
 
 #### update_tlb_bit
 avvisa che un frame (indirizzo virtuale) è stato rimosso dalla TLB.
