@@ -84,14 +84,23 @@ prepara il caricamento dei segmenti di memoria nell'address space.
 completa caricamento dei segmenti di memoria.
 
 ### Page table (g1):
-La page table usata è una Inverted Page Table, che riceve un indirizzo virtuale e l'ID del processo e sakva questi valori all'interno della RAM. Per la ricerca della vittima, è stata usata la tecnica del rimpiazziamento basato su second chance su una coda FIFO. Nel caso in cui la pagina non sia nella TLB e il Bit di riferimento sia uguale a 0, questa può essere sostituita; nel caso in cui il Bit di riferimento sia uguale ad 1, esso viene settato a 0 e si continua la ricerca in modo circolare.
-Per l'algoritmo di second change, vengono escluse le pagine che non posso essere rimosse quali quelle interessate in operazioni di I/O, fork o inserite al momento nella TLB. 
+La page table utilizzata è un'Inverted Page Table, che associa un indirizzo virtuale e l'ID del processo alla corrispondente entry in RAM. Questo approccio riduce il consumo di memoria rispetto a una tradizionale page table, poiché mantiene una sola tabella globale invece di una per ogni processo. La gestione del rimpiazzo delle pagine segue un algoritmo basato sulla tecnica del Second Chance, combinata con una coda FIFO.
 
-Le pagine interessate in operazioni di I/O non vengono considerate in quanto le operazioni di I/O fallirebbero in caso opposto.
-Per quanto riguarda le pagine interessate nella fork, viene controllato lo swap bit, un loro spostamento dalla tabella delle pagine nel mezzo di una fork potrebbe causare incongruenze che potrebbero portare a pagine non copiate. Per evitare questo problema, si ferma la situazione all'inizio del fork fino a quando non è stato completata con successo. TODO: Aggiunger kmalloc
-Per quanto riguarda le pagine kmalloc (TODO), queste non possono essere spostate in quanto si trovano nello spazio di indirizzidel kernel che non accedere alla page table per tradurre l'indirizzo virtuale in quello fisico.
-In aggiunta, quando una pagina viene rimossa dalla TLB, il suo reference bit viene settato a 1 in modo tale da evitare che venga selezionata come una vittima in quanto potrebbe essere acceduta nel tempo seguente dato che le pagine presenti nell TLB sono quelle accedute più di recente.
+Quando una pagina non è presente nella TLB e deve essere sostituita, l'algoritmo controlla il bit di riferimento:
+- Se il bit di riferimento è 0, la pagina viene considerata una vittima e può essere rimossa.
+- Se il bit di riferimento è 1, viene azzerato e la ricerca continua in modo circolare, dando così alla pagina una "seconda possibilità" prima di essere sostituita.
+Per garantire correttezza ed evitare errori, alcune categorie di pagine vengono escluse dalla sostituzione:
 
+- Pagine interessate da operazioni di I/O:
+Queste non possono essere rimosse perché un'operazione di I/O su una pagina assente fallirebbe. La sostituzione è bloccata fino al completamento dell'operazione.
+
+- Pagine coinvolte in una fork:
+Durante un'operazione di fork, le pagine potrebbero essere in uno stato transitorio e non completamente copiate. Per evitare incoerenze (ad esempio, pagine non copiate o stati incoerenti), tali pagine vengono protette fino al termine della fork. Questo controllo viene effettuato verificando il swap bit o altri flag specifici.
+
+- Pagine allocate con kmalloc:
+Le pagine allocate tramite kmalloc appartengono allo spazio di indirizzamento del kernel e non possono essere spostate. Ciò è dovuto al fatto che il kernel non utilizza la page table per tradurre gli indirizzi virtuali in fisici, quindi il loro spostamento potrebbe compromettere la coerenza del sistema.
+
+Quando una pagina viene rimossa dalla TLB, il suo bit di riferimento viene settato a 1. Questo serve a evitare che la pagina venga immediatamente selezionata come vittima, poiché è probabile che venga acceduta nuovamente nel breve periodo. Tale comportamento sfrutta il principio di località temporale, considerando che le pagine presenti nella TLB sono generalmente quelle accedute più di recente.
 
 La page table è strutturata nel seguente modo:
 #### Struttura dati
