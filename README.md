@@ -16,13 +16,17 @@ Per una miglior coordinazione si è usata una repository condivisa su GitHub e u
 ## Implementazione
 
 ### Address space (g1):
-Per supportare l'on demand paging, sono state effettuate modifiche alla gestione dell'addresspace.
-Il primo cambiamento riguarda la gestione dello stack, dove con l'on demand paging non si ha più la necessità di allocare all'inizio uno spazio di memoria contiguo per lo stack.
-Il secondo cambiamento riguarda le gestione del loadelf dove viene definito lo spazio degli virtuali in modo tale da caricare le pagine quando necessarie. Per gestire questo meccanismo, sono stati definiti all'interno della struttura riguardante l'addresspace le intestazioni relative al segmento di testo e al segnmento di dati.
-Nella struttura dell'addresspace sono inoltre presenti gli offset realtivi alle due sezioni in quanto queste potrebbero non essere allineate all'inizio della pagina.
-Per gestire la terminazione di un processo, vengono cancellate le informazioni del processo dalla tabella delle pagine e dal file di swap mentre per gestire al meglio la fork, viene usata la funzione as_copu che copia tutte le pagine del processo nella tabella delle pagine e viene sostituito dal nuovo processo.
-#TODO: peppe verifica asCopy
+Per supportare l'on-demand paging, sono state apportate modifiche alla gestione dell'address space.
 
+Il primo cambiamento riguarda la gestione dello stack: con l'on-demand paging, non è più necessario allocare a priori uno spazio di memoria contiguo per lo stack, poiché le pagine vengono caricate solo quando effettivamente necessarie.
+
+Il secondo cambiamento interessa la gestione del loadelf, in cui lo spazio degli indirizzi virtuali viene definito in modo tale da caricare le pagine solo al momento del bisogno. Per implementare questo meccanismo, sono stati aggiunti all'interno della struttura dell'address space i riferimenti relativi ai segmenti di testo e di dati.
+
+Nella struttura dell'address space sono anche presenti gli offset relativi a questi due segmenti, poiché potrebbero non essere allineati all'inizio di una pagina. Questo consente di gestire correttamente il caricamento delle pagine in memoria.
+
+Inoltre, per la corretta terminazione di un processo, vengono rimosse le informazioni relative al processo dalla tabella delle pagine e dal file di swap. Per gestire correttamente la fork, viene utilizzata la funzione as_copy(), che copia le pagine del processo nella tabella delle pagine del nuovo processo, garantendo la coerenza tra i processi.
+
+#TODO: Peppe, verifica il funzionamento della funzione as_copy().
 
 L'address space è diviso in due segmenti: data e stack.
 #### Struttura dati
@@ -58,21 +62,21 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 ```
 
 #### as_create
-crea un nuovo spazio di indirizzi e alloca memoria per la struttura addrspace e ne inizializza i campi
+Crea un nuovo spazio di indirizzi, alloca memoria per la struttura addrspace e ne inizializza i campi.
 
 #### as_destroy
 libera la memoria associata a uno spazio di indirizzi: 
 - all'interno è implementato un conteggio dei riferimenti al file, nel caso in cui questo sia 1, il file viene effettivamente chiuso; in caso contrario, viene semplicemente decrementato il conteggio
 
 #### as_copy
-duplica uno spazio di indirizzi esistente da un processo a un altro. 
+Copia un addrespace esistente, duplicando uno spazio di indirizzi esistente da un processo a un altro. 
 - È utile per il fork di un processo, copiando le informazioni di memoria necessarie al nuovo processo.
 
 #### as_activate
-attiva lo spazio di indirizzi corrente per il processo in esecuzione e invalida la TLB per evitare di usare traduzioni errate appartenenti ad un vecchio processo.
+Attiva lo spazio di indirizzi corrente per il processo in esecuzione e invalida la TLB per evitare di usare traduzioni errate appartenenti ad un vecchio processo.
 
 #### as_define_region
-definisce una nuova regione di memoria in uno spazio di indirizzi, imposta la virtual_base e la dimensione.
+Definisce una nuova regione di memoria in uno spazio di indirizzi, imposta la virtual_base e la dimensione.
 
 #### as_define_stack
 Definisce lo spazio per lo stack utente in uno spazio di indirizzi, inizializzando il puntatore allo stack
