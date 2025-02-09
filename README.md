@@ -8,7 +8,7 @@ Il progetto è stato svolto nella variante C1.2 che prevede l'introduzione di un
 ## Composizione e suddivisione del lavoro
 
 Il lavoro è stato suddiviso tra i componenti del gruppo nel seguente modo:
-- g1: Giuseppe Arbore (s329535): _cosa ho fatto io a grandi linee_ TODO
+- g1: Giuseppe Arbore (s329535): implementato parti di codice per gestire la struttura e l'accesso alla memoria virtuale di un processo assicurandone la separazione tra diversi processi (addrespace), per tenere traccia delle pagine fisiche disponibili e quelle in uso, permettendo una gestione efficiente della memoria fisica (coremap) e fornire la mappatura tra inidirizzi virtuali e fisici in modo tale da gestire la memoria virtuale e la paginazione (pt)
 - g2: Claudia Maggiulli (s332252): _cosa hai fatto tu a grandi linee_ TODO
 
 Per una miglior coordinazione si è usata una repository condivisa su GitHub e un file condiviso su Notion in modo tale di tener traccia dei vari progressi.
