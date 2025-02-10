@@ -81,6 +81,14 @@ Definisce una nuova regione di memoria in uno spazio di indirizzi
 #### as_define_stack
 Definisce lo spazio per lo stack utente in uno spazio di indirizzi, inizializzando il puntatore allo stack
 
+#### alloc_kpages
+Effettua l'allocazione di pagine contigue del kernel, il comportamento varia nel caso in base allo stato della page table:
+- Se la page table è attiva, usa la page table chiamando la funzione get_contiguous_pages.
+- Se la page table non è atitva, usa la funzione getppages che prende della memoria dalla ram usando la funzione ram_stealmem.
+
+#### free_kpages
+Libera la memoria occupata precedentemente con la alloc_kpages per quel virtual address.
+
 
 ### Page table (g1):
 La page table utilizzata è un'Inverted Page Table, che associa un indirizzo virtuale e l'ID del processo alla corrispondente entry in RAM. Questo approccio riduce il consumo di memoria rispetto a una tradizionale page table, poiché mantiene una sola tabella globale invece di una per ogni processo. La gestione del rimpiazzo delle pagine segue un algoritmo basato sulla tecnica del Second Chance, combinata con una coda FIFO.
