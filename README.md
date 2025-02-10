@@ -124,8 +124,7 @@ struct pt_entry {
 
 
 #### Implementazione
-Le funzioni sono presenti in [pt.c](./kern/vm/pt.c).
-Queste funzioni vengono definite in [pt.h](./kern/include/pt.h) e servono a inizializzare, effettuare conversioni di indirizzi
+Le funzioni sono presenti in [pt.c](./kern/vm/pt.c) e vengono definite in [pt.h](./kern/include/pt.h
 
 #### pt_init
 inizializza la page table
