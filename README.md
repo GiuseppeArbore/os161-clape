@@ -59,22 +59,7 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 ```
 
 #### as_create
-Crea un nuovo spazio di indirizzi, alloca memoria per la struttura addrspace e ne inizializza i campi.
-```c
-	struct addrspace *as;
-
-	as = kmalloc(sizeof(struct addrspace));
-	if (as == NULL) {
-		return NULL;
-	}
-
-	as->as_vbase1 = 0;
-	as->as_npages1 = 0;
-	as->as_vbase2 = 0;
-	as->as_npages2 = 0;
-
-	return as;
-```
+Crea un nuovo spazio di indirizzi, alloca memoria per la struttura addrspace e ne inizializza i campi a 0.
 
 #### as_destroy
 libera la memoria associata a uno spazio di indirizzi: 
@@ -261,41 +246,9 @@ inizializza la page table
 
 
 #### copy_pt_entries
-Copiare all'interno della PT o del file di swap tutte le pagine del vecchio pid per il nuovo
-```c
-    int pos;
-    for (int i = 0; i < page_table.n_entry; i++)
-    {
-        if ( page_table.entries[i].pid == old 
-            && page_table.entries[i].page != KMALLOC_PAGE 
-            && GetValidityBit(page_table.entries[i].ctrl) )
-        {
-            pos = findspace();
-
-            if(pos==-1){
-                KASSERT(!GetIOBit(page_table.entries[i].ctrl));
-                KASSERT(GetSwapBit(page_table.entries[i].ctrl));
-                KASSERT(page_table.entries[i].page != KMALLOC_PAGE);
-                DEBUG(DB_VM,"Copiato dall'indirizzo pt 0x%x per il processo %d\n", page_table.entries[i].page, new);
-                store_swap(page_table.entries[i].page, new , page_table.first_free_paddr + i*PAGE_SIZE);
-
-            } else{
-                page_table.entries[pos].ctrl = SetValidityBitOne(page_table.entries[pos].ctrl);
-                page_table.entries[pos].page = page_table.entries[i].page;
-                page_table.entries[pos].pid = new;
-                add_in_hash(page_table.entries[i].page, new, pos);
-
-                memmove((void*)PADDR_TO_KVADDR(page_table.first_free_paddr+ pos*PAGE_SIZE),(void *)PADDR_TO_KVADDR(page_table.first_free_paddr + i*PAGE_SIZE), PAGE_SIZE);
-                
-                KASSERT(!GetIOBit(page_table.entries[pos].ctrl));
-                KASSERT(!GetSwapBit(page_table.entries[pos].ctrl));
-                KASSERT(!GetTlbBit(page_table.entries[pos].ctrl));
-                KASSERT(page_table.entries[pos].page != KMALLOC_PAGE);
-
-            }
-        }
-    }
-```
+Copia all'interno della PT o del file di swap tutte le pagine del vecchio pid per il nuovo
+- usa la funzione findspace per trovare una pagina libera
+  	- se non trova spazio, aggiunge nello swapfile
 
 
 #### prepare_copy_pt
@@ -306,43 +259,7 @@ Setta a zero i bit SWAP relativi al pid passato
 
 #### get_page
 Funzione per ottenere la pagina, a sua volta chiama pt_get_paddr o findspace per cercare spazio libero nella page table
-```c
-    pid_t pid = proc_getpid(curproc); // pid corrente
-    int res;
-    paddr_t phisical;
-    res = pt_get_paddr(v, pid);
-
-    if (res != -1)
-    {
-        phisical = (paddr_t) res;
-        add_tlb_reload();
-        return phisical;
-    }
-
-    int pos = findspace(v,pid); 
-    if (pos == -1) //non trovato libero, cerco vittima
-    {
-        pos = find_victim(v, pid);
-        KASSERT(pos<page_table.n_entry);
-        phisical = page_table.first_free_paddr + pos*PAGE_SIZE;
-    }
-    else{
-        KASSERT(pos<page_table.n_entry);
-        add_in_hash(v,pid,pos);
-        phisical = page_table.first_free_paddr + pos*PAGE_SIZE;
-        page_table.entries[pos].ctrl= SetValidityBitOne(page_table.entries[pos].ctrl);
-        page_table.entries[pos].ctrl= SetIOBitOne(page_table.entries[pos].ctrl);
-        page_table.entries[pos].page = v;
-        page_table.entries[pos].pid = pid;
-    }
-
-    KASSERT(page_table.entries[pos].page !=KMALLOC_PAGE);
-    load_page(v, pid, phisical);
-    page_table.entries[pos].ctrl = SetIOBitZero(page_table.entries[pos].ctrl );
-    page_table.entries[pos].ctrl = SetTlbBitOne(page_table.entries[pos].ctrl);
-
-    return phisical;
-```
+- ritorna l'indirizzo fisico
 
 #### pt_load_page
 carica una nuova pagina dall'elf file. Se la page table è piena, seleziona la pagina da rimuovere usando l'algoritmo second-chance e lo salva nell swap file.
@@ -352,82 +269,13 @@ Libera tutte le pagine associate ad un processo quando termina, rimuove le entry
 
 #### findspace
 Cerca una pagina libera nella tabella che non sia valida, in IO, in swap o riservata per KMALLOC.
-```c
-    for(int i=0; i<page_table.n_entry; i++){
-        if (GetValidityBit(page_table.entries[i].ctrl) || GetIOBit(page_table.entries[i].ctrl) || GetSwapBit(page_table.entries[i].ctrl)){
-            continue;
-        }else if(page_table.entries[i].page != KMALLOC_PAGE ){ 
-            // non valido, non in uso io, non in swap, non in kmalloc
-            return i; //ritorno l'indice della pagina libera
-        }
-    }
-    return -1;
-```
+- se la trova, ritorna l'indiice della pagina libera
 
 #### find_victim
 Implementa un meccanismo per trovare una pagina "vittima" da sostituire, controllando il bit di riferimento e altre condizioni.
 - Scorre la page table e cerca pagine che non sono in uso
-- La pagina vittima viene salvata nello spazio di swap se necessario, e la nuova pagina viene aggiunta alla hash table.
-
-```c
-    int i, start_index=lastIndex;
-    int n_iter=0;
-    int old_validity=0;
-    pid_t old_pid;
-    vaddr_t old_v;
-
-    for (i = lastIndex;; i = (i+1)%page_table.n_entry)
-    {
-        if (!GetTlbBit(page_table.entries[i].ctrl) 
-            && !GetIOBit(page_table.entries[i].ctrl) 
-            && page_table.entries[i].page != KMALLOC_PAGE
-            && !GetSwapBit(page_table.entries[i].ctrl)
-        ){
-            //se la pagina non è in tlb, non è in IO e non è in kmalloc
-            if(GetReferenceBit(page_table.entries[i].ctrl)==0){
-                //se il bit di riferimento è a 0 -> vittima trovata
-                //faccio ulteriori controlli
-                KASSERT(!GetIOBit(page_table.entries[i].ctrl));
-                KASSERT(!GetSwapBit(page_table.entries[i].ctrl));
-                KASSERT(!GetTlbBit(page_table.entries[i].ctrl));
-                KASSERT(page_table.entries[i].page != KMALLOC_PAGE);
-
-                old_pid = page_table.entries[i].pid;
-                old_validity = GetValidityBit(page_table.entries[i].ctrl);
-                old_v = page_table.entries[i].page;
-
-                page_table.entries[i].pid = pid;
-                page_table.entries[i].page = vaddr;
-                page_table.entries[i].ctrl=SetIOBitOne(page_table.entries[i].ctrl);
-                page_table.entries[i].ctrl=SetValidityBitOne(page_table.entries[i].ctrl);
-
-                if (old_validity){
-                    remove_from_hash(old_v, old_pid);
-                    store_swap(old_v, old_pid, i* PAGE_SIZE + page_table.first_free_paddr ); 
-                }
-                add_in_hash(vaddr, pid, i);
-                lastIndex = (i+1)%page_table.n_entry;
-                return i;
-            }else{
-                page_table.entries[i].ctrl = SetReferenceBitZero(page_table.entries[i].ctrl);
-            }
-        }
-        
-        /* controllo per evitare cicli infiniti, se non trovo vittime  */
-
-        if((i+1) % page_table.n_entry == start_index){
-            if(n_iter<2){
-                n_iter++;
-                continue;
-            }else{
-                lock_acquire(page_table.pt_lock);
-                cv_wait(page_table.pt_cv, page_table.pt_lock);
-                lock_release(page_table.pt_lock);
-                n_iter=0;
-            }
-        }
-    }
-```
+	- La pagina vittima viene salvata nello spazio di swap se necessario, e la nuova pagina viene aggiunta alla hash table.
+- Nel caso in cui non ci sia una vittima selezionabile, attende che una diventi disponibile
 
 #### get_contiguous_pages
 Cerca e alloca un blocco di pagine consecutive nella memoria fisica
@@ -466,40 +314,15 @@ Inizializza la hashtable allocando lo spazio necessario.
     } 
 ```
 
-#### add_in_hash(
+#### add_in_hash
 Aggiunge un blocco alla hash table prendendolo da unused_ptr_list
-```c
-    int val = get_hash_func(vad, pid);
-    struct hash_entry *tmp = unused_ptr_list;
-    
-    KASSERT(tmp!=NULL);
-
-    unused_ptr_list = tmp->next;
-
-    tmp->vad = vad;
-    tmp->pid = pid;
-    tmp->ipt_entry = ipt_entry;
-    tmp->next = htable.table[val];
-
-    htable.table[val] = tmp;
-```
+- usa la funzione get_hash_func per calcolare l'indice per la hash table.
 
 #### get_index_from_hash
-Ottenere l'indice della hash table
-```c
-    int val = get_hash_func(vad, pid);
-    struct hash_entry *tmp = htable.table[val];
-    while (tmp != NULL)
-    {
-        KASSERT((unsigned int)tmp>0x80000000 && (unsigned int)tmp<=0x9FFFFFFF); //verifica che il puntatore sia in keseg0 (per accesso diretto alla mem fisica)
-        if (tmp->vad == vad && tmp->pid == pid)
-        {
-            return tmp->ipt_entry;
-        }
-        tmp = tmp->next;
-    }
-    return -1;
-```
+Ottiene l'indice della hash table
+- usa la funzione get_hash_func per calcolare l'indice
+- se non trova all'indice restituito, scorre finchè non trova la corretta corrispondenza con indirizzo virtuale e pid
+- nel caso in cui non trova e raggiunge la fine del file, torna -1
 
 #### remove_from_hash
 Rimuove una lista di blocchi dalla page_Table e la aggiunge alla lista di blocchi liberi
