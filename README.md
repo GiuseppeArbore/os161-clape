@@ -161,11 +161,12 @@ Setta a uno i bit SWAP relativi al pid passato
 Setta a zero i bit SWAP relativi al pid passato
 
 #### get_page
-Funzione per ottenere la pagina, a sua volta chiama pt_get_paddr o findspace per cercare spazio libero nella page table
-- ritorna l'indirizzo fisico
+Funzione per ottenere la pagina, a sua volta chiama pt_get_paddr per ottenere la pagine e tornare l'indirizzo fisico
+- nel caso in cui non sia già presente, chiama findspace per cercare spazio libero nella page table
 
 #### pt_load_page
-carica una nuova pagina dall'elf file. Se la page table è piena, seleziona la pagina da rimuovere usando l'algoritmo second-chance e lo salva nell swap file.
+Carica una nuova pagina dall'elf file.
+- Se la page table è piena, seleziona la pagina da rimuovere usando l'algoritmo second-chance e lo salva nell swap file.
 
 #### free_pages
 Libera tutte le pagine associate ad un processo quando termina, rimuove le entry dalla hash table e resetta i bit di controllo.
@@ -196,27 +197,6 @@ Converte l'indirizzo fisico nel corrispondente indirizzo virtuale usando la funz
 #### hashtable_init
 Inizializza la hashtable allocando lo spazio necessario
 - inizializza la unused_ptr_list
-```c
-    htable.size= 2 *page_table.n_entry;
-
-    htable.table = kmalloc(sizeof(struct hash_entry *) * htable.size);
-    for (int i =0; i < htable.size; i++){
-        htable.table[i] = NULL; //nessun puntatore all'interno dell'array di liste
-    }
-
-    unused_ptr_list = NULL;
-    struct hash_entry *tmp;
-    for (int j = 0; j < page_table.n_entry; j++){ //iniziallizo unused ptr list
-        tmp = kmalloc(sizeof(struct hash_entry));
-        KASSERT((unsigned int)tmp>0x80000000);
-        if (!tmp)
-        {
-            panic("Error during hash pt elements allocation");
-        }
-        tmp->next = unused_ptr_list;
-        unused_ptr_list = tmp;
-    } 
-```
 
 #### add_in_hash
 Aggiunge un blocco alla hash table prendendolo da unused_ptr_list
