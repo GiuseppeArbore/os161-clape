@@ -265,18 +265,11 @@ void vm_shutdown(void){
 	{
 		if (page_table.entries[i].ctrl!=0)
 		{
-			kprintf("Page %d is still in the page table\n",i); 
-			/*
-				kprintf("Entry%d has not been freed! ctl=%d, pid=%d\n",i,peps.pt[i].ctl,peps.pt[i].pid);
-
-			*/
+			kprintf("Entry %d is still in the page table\n",i); 
 		}
 		if (page_table.entries[i].page==1)
 		{
-			kprintf("errore , capire bene cosa stampare\n"); 
-			/*
-				kprintf("It looks like some errors with free occurred: entry%d, process %d\n",i,peps.pt[i].pid);
-			*/
+			kprintf("errore nella free\n"); 
 		}		
 	}
 	#endif
