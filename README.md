@@ -1012,11 +1012,9 @@ Per verificare l'effettivo funzionamento del sistema, sono stati usati i test gi
 - ctest: esegue un test rapido sulle system call di base per verificare il corretto funzionamento del sistema.
 
 Inoltre, per verificare le funzioni base del kernel fossero già correttamente implementate, sono stati eseguiti i seguenti test:
-- at: 
-- at2:
-- bt:
-- km1:
-- km2: 
+- at, at2: gestione degli array,
+- bt: gestione della bitmap,
+- km1, km2: gestione kmalloc.
 
 
 ## Statistiche
