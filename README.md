@@ -1,17 +1,17 @@
-# Progetto OS161: C1.1
+# Progetto OS161: C1.2
 
 ## Introduzione
-Il progetto ha l'obbiettivo di espandere il modulo della gestione della memoria (dumbvm), sostituendolo completamente con un gestore di memoria virtuale più avanzato, basato sulla tabella delle pagine dei progetti. 
+Il progetto ha l'obbiettivo di espandere il modulo della gestione della memoria (dumbvm), sostituendolo completamente con un gestore di memoria virtuale più avanzato, basato sulla tabella delle pagine dei processi. 
 Il progetto richiede inoltre di lavorare sulla TLB (Translation Lookaside Buffer).
-Il progetto è stato svolto nella variante C1.2 che prevede l'introduzione di una __Inverted Page Table__ con una hash table per velocizzare la ricerca.
+Il progetto è stato svolto nella variante C1.2 che prevede l'introduzione di una __Inverted Page Table__ con una soluzione per velocizzare la ricerca, per questo scopo è stata implementata una hash table.
 
 ## Composizione e suddivisione del lavoro
 
 Il lavoro è stato suddiviso tra i componenti del gruppo nel seguente modo:
-- g1: Giuseppe Arbore (s329535): implementato parti di codice per gestire la struttura e l'accesso alla memoria virtuale di un processo assicurandone la separazione tra diversi processi (addrespace), per tenere traccia delle pagine fisiche disponibili e quelle in uso, permettendo una gestione efficiente della memoria fisica (coremap) e fornire la mappatura tra inidirizzi virtuali e fisici in modo tale da gestire la memoria virtuale e la paginazione (page table)
-- g2: Claudia Maggiulli (s332252): implementato la gestione della TLB, garantendo un corretto funzionamento della memoria virtuale con la nuova politica on-demand,  gestito la segmentazione della memoria virtuale, distinguendo tra i diversi segmenti di un processo e garantendo un corretto allineamento con il nuovo modello di paging on-demand delle pagine dai file ELF o dallo swap file, e ho sviluppato un sistema di swap efficiente con una struttura dati ottimizzata per gestire il trasferimento delle pagine tra RAM e disco.
+- g1: Giuseppe Arbore (s329535): implementato parti di codice per gestire la struttura e l'accesso alla memoria virtuale di un processo assicurandone la separazione tra diversi processi (addrespace), per tenere traccia delle pagine fisiche disponibili e quelle in uso, permettendo una gestione efficiente della memoria fisica (coremap) e fornire la mappatura tra inidirizzi virtuali e fisici in modo tale da gestire la memoria virtuale e la paginazione (page table) con l'aggiunta di una hash table per velocizzare la ricerca.
+- g2: Claudia Maggiulli (s332252): implementato la gestione della TLB, garantendo un corretto funzionamento della memoria virtuale con la nuova politica on-demand,  gestito la segmentazione della memoria virtuale, distinguendo tra i diversi segmenti di un processo e garantendo un corretto allineamento con il nuovo modello di paging on-demand delle pagine dai file ELF o dallo swap file, e sviluppato un sistema di swap efficiente con una struttura dati ottimizzata per gestire il trasferimento delle pagine tra RAM e disco.
 
-Per una miglior coordinazione si è usata una repository condivisa su GitHub e un file condiviso su Notion in modo tale di tener traccia dei vari progressi.
+Per una miglior coordinazione si è usata una repository condivisa su GitHub e un file su Notion in modo tale di tener traccia dei vari progressi.
 
 ## Implementazione
 
@@ -26,8 +26,8 @@ Nella struttura dell'address space sono anche presenti gli offset relativi a que
 
 Inoltre, per la corretta terminazione di un processo, vengono rimosse le informazioni relative al processo dalla tabella delle pagine e dal file di swap. Per gestire correttamente la fork, viene utilizzata la funzione as_copy(), che copia le pagine del processo nella tabella delle pagine del nuovo processo, garantendo la coerenza tra i processi.
 
+Per quanto riguarda la struttura dati che definisce l'addresspace, bisogna salvare le informazioni riguardanti i segmenti text e data dell'address space in quanto servono per caricare le pagine non ancora mappare nei frame ed è necessario salvare il vnode relativo all'eseguibile in modo tale da poterci fare accesso.
 
-L'address space è diviso in due segmenti: data e stack.
 #### Struttura dati
 ```c
 struct addrspace {
@@ -35,9 +35,9 @@ struct addrspace {
         size_t as_npages1;
         vaddr_t as_vbase2;
         size_t as_npages2;
-        Elf_Phdr ph1;//Program header of the text section
+        Elf_Phdr ph1;//Program header of the stack section
         Elf_Phdr ph2;//Program header of the data section
-        struct vnode *v; //vnode of the elf  - eseguibile
+        struct vnode *v; //vnode of the elf
         size_t initial_offset1;
         size_t initial_offset2;
         int valid;
@@ -93,6 +93,7 @@ libera la memoria associata a uno spazio di indirizzi:
 #### as_copy
 Copia un addrespace esistente, duplicando uno spazio di indirizzi esistente da un processo a un altro. 
 - È utile per il fork di un processo, copiando le informazioni di memoria necessarie al nuovo processo.
+- Incrementa il numero di riferimenti in modo tale da poter gestire la futura distruzione.
 
 ```c
 	struct addrspace *newas;
@@ -173,14 +174,14 @@ Quando una pagina non è presente nella TLB e deve essere sostituita, l'algoritm
 - Se il bit di riferimento è 1, viene azzerato e la ricerca continua in modo circolare, dando così alla pagina una "seconda possibilità" prima di essere sostituita.
 Per garantire correttezza ed evitare errori, alcune categorie di pagine vengono escluse dalla sostituzione:
 
-- Pagine interessate da operazioni di I/O:
-Queste non possono essere rimosse perché un'operazione di I/O su una pagina assente fallirebbe. La sostituzione è bloccata fino al completamento dell'operazione.
+	- Pagine interessate da operazioni di I/O:
+	Queste non possono essere rimosse perché un'operazione di I/O su una pagina assente fallirebbe. La sostituzione è bloccata fino al completamento dell'operazione.
 
-- Pagine coinvolte in una fork:
-Durante un'operazione di fork, le pagine potrebbero essere in uno stato transitorio e non completamente copiate. Per evitare incoerenze (ad esempio, pagine non copiate o stati incoerenti), tali pagine vengono protette fino al termine della fork. Questo controllo viene effettuato verificando il swap bit o altri flag specifici.
+	- Pagine coinvolte in una fork:
+	Durante un'operazione di fork, le pagine potrebbero essere in uno stato transitorio e non completamente copiate. Per evitare incoerenze (ad esempio, pagine non copiate o stati incoerenti), tali pagine vengono protette fino al termine della fork. Questo controllo viene effettuato verificando il swap bit o altri flag specifici.
 
-- Pagine allocate con kmalloc:
-Le pagine allocate tramite kmalloc appartengono allo spazio di indirizzamento del kernel e non possono essere spostate. Ciò è dovuto al fatto che il kernel non utilizza la page table per tradurre gli indirizzi virtuali in fisici, quindi il loro spostamento potrebbe compromettere la coerenza del sistema.
+	- Pagine allocate con kmalloc:
+	Le pagine allocate tramite kmalloc appartengono allo spazio di indirizzamento del kernel e non possono essere spostate. Ciò è dovuto al fatto che il kernel non utilizza la page table per tradurre gli indirizzi virtuali in fisici, quindi il loro spostamento potrebbe compromettere la coerenza del sistema.
 
 Quando una pagina viene rimossa dalla TLB, il suo bit di riferimento viene settato a 1. Questo serve a evitare che la pagina venga immediatamente selezionata come vittima, poiché è probabile che venga acceduta nuovamente nel breve periodo. Tale comportamento sfrutta il principio di località temporale, considerando che le pagine presenti nella TLB sono generalmente quelle accedute più di recente.
 
@@ -200,7 +201,7 @@ struct pt_info{
 struct pt_entry {
     vaddr_t page; // indirizzo virtuale
     pid_t pid; // pid del processo a cui appartiene la pagina
-    uint8_t ctrl; // bit di controllo come: validity, reference,isInTlb, ---
+    uint8_t ctrl; // bit di controllo 
 };
 
 ```
@@ -298,20 +299,10 @@ Copiare all'interno della PT o del file di swap tutte le pagine del vecchio pid 
 
 
 #### prepare_copy_pt
-Setta a uno tutti i bit SWAP relativi al pid passato
-```c
-    for (int i = 0; i < page_table.n_entry; i++)
-    {
-        if (page_table.entries[i].pid == pid && page_table.entries[i].page != KMALLOC_PAGE && GetValidityBit(page_table.entries[i].ctrl))
-        {
-            KASSERT(!GetIOBit(page_table.entries[i].ctrl));
-            page_table.entries[i].ctrl = SetSwapBitOne(page_table.entries[i].ctrl);
-        }
-    }
-```
+Setta a uno i bit SWAP relativi al pid passato
 
 #### end_copy_pt
-setta a zero tutti i bit SWAP relativi al pid passato
+setta a zero i bit SWAP relativi al pid passato
 ```c
     for (int i = 0; i < page_table.n_entry; i++)
     {
@@ -341,8 +332,6 @@ Funzione per ottenere la pagina, a sua volta chiama pt_get_paddr o findspace per
         add_tlb_reload();
         return phisical;
     }
-
-    DEBUG(DB_VM,"PID=%d wants to load 0x%x\n",pid,v);
 
     int pos = findspace(v,pid); 
     if (pos == -1) //non trovato libero, cerco vittima
@@ -438,9 +427,7 @@ Implementa un meccanismo per trovare una pagina "vittima" da sostituire, control
             }
         }
         
-        /* controllo per evitare cicli infiniti, se non trovo vittime, 
-        * mi fermo e aspetto che qualcuno mi svegli (cambiamenti su condizioni delle pagine)
-        */
+        /* controllo per evitare cicli infiniti, se non trovo vittime  */
 
         if((i+1) % page_table.n_entry == start_index){
             if(n_iter<2){
@@ -454,177 +441,20 @@ Implementa un meccanismo per trovare una pagina "vittima" da sostituire, control
             }
         }
     }
-    panic("Non dovrebbe arrivare qui, non è riuscito a trovare vittime");
 ```
 
 #### get_contiguous_pages
 Cerca e alloca un blocco di pagine consecutive nella memoria fisica
 - se necessario, trova vittime per creare spazio
-
-```c
-    DEBUG(DB_VM,"Process %d performs kmalloc for %d pages\n", curproc->p_pid,n_pages);
-    int i, j, first_pos=-1, prec=0, old_val, first_it=0;
-    vaddr_t old_vaddr;
-    pid_t old_pid;
-
-    if (n_pages>page_table.n_entry){
-        panic("Non ci sono abbastanza pagine nella page table");
-    }
-
-    for ( i = 0; i < page_table.n_entry; i++)
-    {
-        if (i!=0)
-        {
-            prec= valid_entry(page_table.entries[i-1].ctrl, page_table.entries[i-1].page);
-        }
-        if (!GetValidityBit(page_table.entries[i].ctrl) && 
-            !GetTlbBit(page_table.entries[i].ctrl) &&
-            !GetIOBit(page_table.entries[i].ctrl) &&
-            !GetSwapBit(page_table.entries[i].ctrl) &&
-            page_table.entries[i].page!=KMALLOC_PAGE && 
-            (i==0 || prec)
-        ){ 
-            first_pos=i;    //sono la prima pagina del blocco contiguo
-        }
-
-        if (first_pos>=0 && 
-            ! GetValidityBit(page_table.entries[i].ctrl) &&
-            ! GetTlbBit(page_table.entries[i].ctrl) &&
-            ! GetSwapBit(page_table.entries[i].ctrl) &&
-            page_table.entries[i].page!=KMALLOC_PAGE && 
-            ! GetIOBit(page_table.entries[i].ctrl) &&
-            i-first_pos==n_pages-1
-        )
-        {
-            //se ho trovato tutte le pagine contigue che mi servivano
-            DEBUG(DB_VM,"Kmalloc for process %d entry%d\n",curproc->p_pid,first_pos);
-            for (j=first_pos; j<=i; j++){
-                KASSERT(page_table.entries[j].page!=KMALLOC_PAGE);
-                KASSERT(!GetValidityBit(page_table.entries[j].ctrl));
-                KASSERT(!GetTlbBit(page_table.entries[j].ctrl));
-                KASSERT(!GetIOBit(page_table.entries[j].ctrl));
-                KASSERT(!GetSwapBit(page_table.entries[j].ctrl));
-                page_table.entries[i].ctrl = SetValidityBitOne(page_table.entries[j].ctrl);
-                page_table.entries[i].page=KMALLOC_PAGE;
-                page_table.entries[i].pid= curproc->p_pid;
-            }
-            page_table.contiguous[first_pos]=n_pages;
-            return first_pos*PAGE_SIZE + page_table.first_free_paddr;
-            
-        }
-
-    }
-
-    while (1)
-    {
-        for (i=lastIndex; i<page_table.n_entry; i++)
-        {
-            if (page_table.entries[i].page!=KMALLOC_PAGE &&
-                ! GetTlbBit(page_table.entries[i].ctrl) &&
-                ! GetIOBit(page_table.entries[i].ctrl) &&
-                ! GetSwapBit(page_table.entries[i].ctrl) 
-            ){
-                if (GetReferenceBit(page_table.entries[i].ctrl) 
-                    && GetValidityBit(page_table.entries[i].ctrl)
-                ){
-                    page_table.entries[i].ctrl = SetReferenceBitZero(page_table.entries[i].ctrl);
-                    continue;
-                }
-                if ( (  !GetReferenceBit(page_table.entries[i].ctrl) ||
-                        !GetValidityBit(page_table.entries[i].ctrl) 
-                        )
-                        &&
-                        (i==0 || valid_entry(page_table.entries[i-1].ctrl, page_table.entries[i-1].page))
-                    ){
-                        first_pos=i;
-                    }    
-                if( first_pos>=0 && 
-                    ( !GetReferenceBit(page_table.entries[i].ctrl) || !GetValidityBit(page_table.entries[i].ctrl)) &&
-                    i-first_pos==n_pages-1
-                ) {
-                    DEBUG(DB_VM,"Found a space for a kmalloc for process %d entry%d\n",curproc->p_pid,first_pos);
-                    for(j=first_pos; j<=i; j++){
-                        KASSERT(page_table.entries[j].page != KMALLOC_PAGE);
-                        KASSERT(!GetValidityBit(page_table.entries[j].ctrl) || !GetReferenceBit(page_table.entries[j].ctrl));
-                        KASSERT(!GetTlbBit(page_table.entries[j].ctrl));
-                        KASSERT(!GetIOBit(page_table.entries[j].ctrl));
-                        KASSERT(!GetSwapBit(page_table.entries[j].ctrl));
-                        
-                        old_pid = page_table.entries[j].pid;
-                        old_vaddr = page_table.entries[j].page;
-                        old_val = GetValidityBit(page_table.entries[j].ctrl);
-
-                        page_table.entries[j].pid = curproc->p_pid;
-                        page_table.entries[j].page = KMALLOC_PAGE;
-                        page_table.entries[j].ctrl = SetValidityBitOne(page_table.entries[j].ctrl);
-
-
-                        if (old_val)
-                        {
-                            page_table.entries[j].ctrl = SetIOBitOne(page_table.entries[j].ctrl);
-                            
-                            remove_from_hash(old_vaddr, old_pid);
-                            store_swap(old_vaddr,old_pid,j * PAGE_SIZE + page_table.first_free_paddr);
-
-                            page_table.entries[j].ctrl = SetIOBitZero(page_table.entries[j].ctrl);
-                        }
-                    }
-                    page_table.contiguous[first_pos]=n_pages;
-                    lastIndex = (i+1)%page_table.n_entry;
-                    return first_pos*PAGE_SIZE + page_table.first_free_paddr;
-                }
-            }
-        }
-        lastIndex=0;
-        if (first_it<2)
-        {
-            first_it++;
-        }else{
-            lock_acquire(page_table.pt_lock);
-            
-            cv_wait(page_table.pt_cv, page_table.pt_lock);
-        
-            lock_release(page_table.pt_lock);
-            first_it=0;
-        }
-        first_pos=-1;    
-    }
-    return ENOMEM;
-```
+- nel caso in cui ci siano abbastanza pagine disponibili, le alloca al richiedente e inserisce all'interno di page_table.contigous il numero di pagine designate.
 
 #### free_contiguous_pages_
 liberare le pagine contigue allocate nella ipt per un determinato indirizzo virtuale
-```c
-    int i, index, niter;
-    paddr_t p = KVADDR_TO_PADDR(addr);
-    index = (p - page_table.first_free_paddr) / PAGE_SIZE;
-    niter = page_table.contiguous[index];
-
-    DEBUG(DB_VM,"Process %d performs kfree for %d pages\n", curproc?curproc->p_pid:0,niter);
-
-    for (i = index; i < index + niter; i++)
-    {
-        KASSERT(page_table.entries[i].page == KMALLOC_PAGE);
-        page_table.entries[i].ctrl = SetValidityBitZero(page_table.entries[i].ctrl);
-        page_table.entries[i].page = 0;
-    }
-
-    page_table.contiguous[index] = -1;
-
-    if(curthread->t_in_interrupt == false){
-        lock_acquire(page_table.pt_lock);
-        cv_broadcast(page_table.pt_cv,page_table.pt_lock); //Since we freed some pages, we wake up the processes waiting on the cv.
-        lock_release(page_table.pt_lock);
-    }
-    else{
-        cv_broadcast(page_table.pt_cv,page_table.pt_lock);
-    }
-```
+- calcola l'indice relativo all'indirizzo e libera le pagine associate
 
 #### pt_get_paddr
 Converte l'indirizzo fisico nel corrispondente indirizzo virtuale usando la funzione get_index_from_hash
 - moltiplica l'indice restituito per la dimensione delle pagine e aggiunge l'indirizzo fisico della prima pagina, per ottenere così l'indirizzo fisico cercato.
-
 
 ---
 #### hashtable_init
@@ -757,6 +587,8 @@ Disattiva la coremap impostando a 0 il flagger indicare che la coremap sia attiv
 
 #### bitmap_is_active
 Verifica se la bitmap è attiva restituiendo il valore del flag bitmapFtrrFramesActive.
+
+
 
 ### TLB Management (g2)
 In OS161, ogni voce della TLB include un numero di pagina virtuale (20 bit), un numero di pagina fisica (20 bit) e cinque campi, di cui gli usati sono:
