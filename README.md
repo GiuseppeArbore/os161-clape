@@ -302,21 +302,7 @@ Copiare all'interno della PT o del file di swap tutte le pagine del vecchio pid 
 Setta a uno i bit SWAP relativi al pid passato
 
 #### end_copy_pt
-setta a zero i bit SWAP relativi al pid passato
-```c
-    for (int i = 0; i < page_table.n_entry; i++)
-    {
-        if (page_table.entries[i].pid == pid && page_table.entries[i].page != KMALLOC_PAGE && GetValidityBit(page_table.entries[i].ctrl))
-        {
-            KASSERT(GetSwapBit(page_table.entries[i].ctrl));
-            page_table.entries[i].ctrl = SetSwapBitZero(page_table.entries[i].ctrl);
-        }
-    }
-
-    lock_acquire(page_table.pt_lock);
-    cv_broadcast(page_table.pt_cv, page_table.pt_lock);
-    lock_release(page_table.pt_lock);
-```
+Setta a zero i bit SWAP relativi al pid passato
 
 #### get_page
 Funzione per ottenere la pagina, a sua volta chiama pt_get_paddr o findspace per cercare spazio libero nella page table
@@ -449,15 +435,15 @@ Cerca e alloca un blocco di pagine consecutive nella memoria fisica
 - nel caso in cui ci siano abbastanza pagine disponibili, le alloca al richiedente e inserisce all'interno di page_table.contigous il numero di pagine designate.
 
 #### free_contiguous_pages_
-liberare le pagine contigue allocate nella ipt per un determinato indirizzo virtuale
+Libera le pagine contigue allocate nella ipt per un determinato indirizzo virtuale
 - calcola l'indice relativo all'indirizzo e libera le pagine associate
 
 #### pt_get_paddr
 Converte l'indirizzo fisico nel corrispondente indirizzo virtuale usando la funzione get_index_from_hash
 - moltiplica l'indice restituito per la dimensione delle pagine e aggiunge l'indirizzo fisico della prima pagina, per ottenere così l'indirizzo fisico cercato.
 
----
 #### hashtable_init
+Inizializza la hashtable allocando lo spazio necessario.
 ```c
     htable.size= 2 *page_table.n_entry;
 
@@ -516,48 +502,7 @@ Ottenere l'indice della hash table
 ```
 
 #### remove_from_hash
-rimuove una lista di blocchi dalla page_Table e la aggiunge alla lista di blocchi liberi
-```c
-    int val =  get_hash_func(v, pid);
-    DEBUG(DB_VM, "Rimuovo da hash 0x%x per il processo %d, pos %d\n", v, pid, val);
-
-    struct hash_entry *tmp = htable.table[val];
-    struct hash_entry *prev = NULL;
-
-    if (tmp == NULL){
-        panic("Errore durante la rimozione dall'hash");
-    }
-
-    if (tmp->vad == v && tmp->pid==pid){
-        tmp->vad = 0;
-        tmp->pid = 0;
-        htable.table[val] = tmp->next;
-        tmp->next = unused_ptr_list;
-        unused_ptr_list = tmp;
-
-        return;
-    }
-
-    prev = tmp;
-    tmp = tmp->next;
-
-    while (tmp != NULL){
-        if(tmp->vad == v && tmp->pid==pid){
-            tmp->vad = 0;
-            tmp->pid = 0;
-            tmp->ipt_entry = -1;
-            prev->next = tmp->next;
-            tmp->next = unused_ptr_list;
-            unused_ptr_list = tmp;
-            return;
-        }
-        prev = tmp;
-        tmp = tmp->next;
-    }
-    
-    panic("Non è stato trovato niente da rimuovere");    
-
-```
+Rimuove una lista di blocchi dalla page_Table e la aggiunge alla lista di blocchi liberi
 
 #### get_hash_func
 Calcola l'entry della hash table usando una funzione di hash
