@@ -1060,7 +1060,7 @@ Le seguenti statistiche sono state collezionale:
 - La somma dei “*Page Faults from ELF*” e “*Page Faults from Swapfile*” deve essere uguale ai ”*Page Faults (Disk)*”.
 
   
-## Note per effettuare i test
+### Note per effettuare i test
 Per lo swapfile, è stata usare la raw partition di _LHD0.img_ . Nell'implementazione, si è deciso di usare come dimensione 9MB invece dei 5MB presenti nella versione predefinita. Per allinearsi, è quindi richiesto di lanciare il seguente comando all'interno della cartella _root_:
 
 ```
