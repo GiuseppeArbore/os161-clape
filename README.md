@@ -197,7 +197,7 @@ Cerca e alloca un blocco di pagine consecutive nella memoria fisica
 - nel caso in cui ci siano abbastanza pagine disponibili, le alloca al richiedente e inserisce all'interno di page_table.contigous il numero di pagine designate.
 
 #### free_contiguous_pages_
-Libera le pagine contigue allocate nella ipt per un determinato indirizzo virtuale
+Libera le pagine contigue allocate nella page table per un determinato indirizzo virtuale
 - calcola l'indice relativo all'indirizzo e libera le pagine associate
 
 #### pt_get_paddr
