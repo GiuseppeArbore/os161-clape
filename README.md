@@ -9,7 +9,7 @@ Il progetto è stato svolto nella variante C1.2 che prevede l'introduzione di un
 
 Il lavoro è stato suddiviso tra i componenti del gruppo nel seguente modo:
 - g1: Giuseppe Arbore (s329535): implementato parti di codice per gestire la struttura e l'accesso alla memoria virtuale di un processo assicurandone la separazione tra diversi processi (addrespace), per tenere traccia delle pagine fisiche disponibili e quelle in uso, permettendo una gestione efficiente della memoria fisica (coremap) e fornire la mappatura tra inidirizzi virtuali e fisici in modo tale da gestire la memoria virtuale e la paginazione (page table)
-- g2: Claudia Maggiulli (s332252): _cosa hai fatto tu a grandi linee_ TODO
+- g2: Claudia Maggiulli (s332252): implementato la gestione della TLB, garantendo un corretto funzionamento della memoria virtuale con la nuova politica on-demand,  gestito la segmentazione della memoria virtuale, distinguendo tra i diversi segmenti di un processo e garantendo un corretto allineamento con il nuovo modello di paging on-demand delle pagine dai file ELF o dallo swap file, e ho sviluppato un sistema di swap efficiente con una struttura dati ottimizzata per gestire il trasferimento delle pagine tra RAM e disco.
 
 Per una miglior coordinazione si è usata una repository condivisa su GitHub e un file condiviso su Notion in modo tale di tener traccia dei vari progressi.
 
