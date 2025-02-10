@@ -64,88 +64,19 @@ Crea un nuovo spazio di indirizzi, alloca memoria per la struttura addrspace e n
 #### as_destroy
 libera la memoria associata a uno spazio di indirizzi: 
 - all'interno è implementato un conteggio dei riferimenti al file, nel caso in cui questo sia 1, il file viene effettivamente chiuso; in caso contrario, viene semplicemente decrementato il conteggio
-```c
-	if(as->v->vn_refcount==1){
-		vfs_close(as->v);
-	}
-	else{
-		as->v->vn_refcount--;
-	}
-
-	kfree(as);
-```
 
 #### as_copy
 Copia un addrespace esistente, duplicando uno spazio di indirizzi esistente da un processo a un altro. 
 - È utile per il fork di un processo, copiando le informazioni di memoria necessarie al nuovo processo.
 - Incrementa il numero di riferimenti in modo tale da poter gestire la futura distruzione.
 
-```c
-	struct addrspace *newas;
-
-	newas = as_create();
-	if (newas==NULL) {
-		return ENOMEM;
-	}
-
-	newas->as_vbase1 = old->as_vbase1;
-	newas->as_npages1 = old->as_npages1;
-	newas->as_vbase2 = old->as_vbase2;
-	newas->as_npages2 = old->as_npages2;
-	newas->ph1 = old->ph1;
-	newas->ph2 = old->ph2;
-	newas->v = old->v;
-	old->v->vn_refcount++;
-	newas->initial_offset1 = old->initial_offset1;
-	newas->initial_offset2 = old->initial_offset2;
-
-	prepare_copy_pt(old_pid);
-	copy_swap_pages(new_pid, old_pid);
-	copy_pt_entries(old_pid, new_pid);
-	end_copy_pt(old_pid);
-
-	*ret = newas;
-	return 0;
-
-```
-
 #### as_activate
 Attiva lo spazio di indirizzi corrente per il processo in esecuzione e invalida la TLB per evitare di usare traduzioni errate appartenenti ad un vecchio processo.
 
 #### as_define_region
-Definisce una nuova regione di memoria in uno spazio di indirizzi, imposta la virtual_base e la dimensione.
-```c
-	size_t npages;
-	size_t initial_offset;
-
-	/* Allineo la regione*/
-	memsize += vaddr & ~(vaddr_t)PAGE_FRAME; // aggiungo la parte non allineata dopo aver isolato l'offset di vaddr
-	initial_offset = vaddr % PAGE_SIZE;
-	vaddr &= PAGE_FRAME;
-
-	// verifico la lunghezza
-	memsize = (memsize + initial_offset + PAGE_SIZE - 1) & PAGE_FRAME;
-	npages = memsize / PAGE_SIZE;
-
-	if (as->as_vbase1 == 0) {
-		DEBUG(DB_VM, "as_define_region, text : vaddr 0x%x \n", vaddr);
-		as->as_vbase1 = vaddr;
-		as->as_npages1 = npages;
-		as->initial_offset1 = initial_offset;
-		return 0;
-	}
-
-	if (as->as_vbase2 == 0) {
-		DEBUG(DB_VM, "as_define_region, data : vaddr 0x%x \n", vaddr);
-		as->as_vbase2 = vaddr;
-		as->as_npages2 = npages;
-		as->initial_offset2 = initial_offset;
-		return 0;
-	}
-
-	kprintf("dumbvm: Warning : Too many regions\n");
-	return ENOSYS;
-```
+Definisce una nuova regione di memoria in uno spazio di indirizzi
+- allinea la regione e calcola l'indirizzo virtuale e l'offset
+- calcola il numero di pagine necessarieimposta la virtual_base e la dimensione.
 
 #### as_define_stack
 Definisce lo spazio per lo stack utente in uno spazio di indirizzi, inizializzando il puntatore allo stack
@@ -202,48 +133,6 @@ inizializza la page table
 - Alloca memoria per le entry della page table e inizializza le strutture di sincronizzazione (lock e condition variable).
 - Inizializza ogni entry della page table con valori predefiniti e assegna i lock e le variabili di condizione a ciascuna entry.
 
-```c
-    spinlock_acquire(&stealmem_lock);
-    int num_frames; // entry_in_frames, frames_for_pt;
-
-    num_frames = (mainbus_ramsize() - ram_stealmem(0)) / PAGE_SIZE ; //numero di frame disponibili
-
-    spinlock_release(&stealmem_lock);
-    page_table.entries = kmalloc(num_frames * sizeof(struct pt_entry));
-
-    spinlock_acquire(&stealmem_lock);
-    if(page_table.entries == NULL){
-        panic("Errore nell'allocazione della page table");
-    }
-
-    page_table.pt_lock = lock_create("pt_lock");
-    page_table.pt_cv = cv_create("pt_cv");
-    if (page_table.pt_lock == NULL || page_table.pt_cv == NULL){
-        panic("Errore nella creazione del lock o cv della page table");
-    }
-    spinlock_release(&stealmem_lock);
-
-    page_table.contiguous = kmalloc(num_frames * sizeof(int));
-    
-    spinlock_acquire(&stealmem_lock);
-    if(page_table.contiguous == NULL){
-        panic("Errore nell'allocazione del flag per le pagine contigue");
-    }
-
-    for (int i = 0; i < num_frames; i++){
-        page_table.entries[i].ctrl = 0;
-        page_table.contiguous[i] = -1;
-    }
-
-    DEBUG(DB_VM,"\nRam size :0x%x, first free address: 0x%x, memoria disponibile: 0x%x",mainbus_ramsize(),ram_stealmem(0),mainbus_ramsize()-ram_stealmem(0));
-
-    page_table.n_entry = ((mainbus_ramsize() - ram_stealmem(0)) / PAGE_SIZE) -1;
-    page_table.first_free_paddr = ram_stealmem(0);
-
-    pt_active = 1;
-    spinlock_release(&stealmem_lock)
-```
-
 
 #### copy_pt_entries
 Copia all'interno della PT o del file di swap tutte le pagine del vecchio pid per il nuovo
@@ -291,7 +180,8 @@ Converte l'indirizzo fisico nel corrispondente indirizzo virtuale usando la funz
 - moltiplica l'indice restituito per la dimensione delle pagine e aggiunge l'indirizzo fisico della prima pagina, per ottenere così l'indirizzo fisico cercato.
 
 #### hashtable_init
-Inizializza la hashtable allocando lo spazio necessario.
+Inizializza la hashtable allocando lo spazio necessario
+- inizializza la unused_ptr_list
 ```c
     htable.size= 2 *page_table.n_entry;
 
