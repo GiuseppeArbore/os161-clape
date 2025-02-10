@@ -119,9 +119,24 @@ struct pt_entry {
     pid_t pid; // pid del processo a cui appartiene la pagina
     uint8_t ctrl; // bit di controllo 
 };
-
 ```
-
+```c
+struct hash_entry{
+    int ipt_entry;      //puntatore a entry IPT
+    vaddr_t vad;        //indirizzo virtuale
+    pid_t pid;          //pid del processo della entry
+    struct hash_entry *next;    //puntatore alla prossima entry della hash
+};
+```
+```c
+struct hash_table{
+    struct hash_entry **table;  //array di puntatori a entry della hash con dimensione size
+    int size;
+} htable;
+```
+```c
+struct hash_entry *unused_ptr_list; //lista dove sono memorizzati tutti i blocchi non utilizzati per la hash table
+```
 
 #### Implementazione
 Le funzioni sono presenti in [pt.c](./kern/vm/pt.c) e vengono definite in [pt.h](./kern/include/pt.h
