@@ -26,7 +26,7 @@ Nella struttura dell'address space sono anche presenti gli offset relativi a que
 
 Inoltre, per la corretta terminazione di un processo, vengono rimosse le informazioni relative al processo dalla tabella delle pagine e dal file di swap. Per gestire correttamente la fork, viene utilizzata la funzione as_copy(), che copia le pagine del processo nella tabella delle pagine del nuovo processo, garantendo la coerenza tra i processi.
 
-Per quanto riguarda la struttura dati che definisce l'addresspace, bisogna salvare le informazioni riguardanti i segmenti text e data dell'address space in quanto servono per caricare le pagine non ancora mappare nei frame ed è necessario salvare il vnode relativo all'eseguibile in modo tale da poterci fare accesso.
+Per quanto riguarda la struttura dati che definisce l'addresspace, bisogna salvare le informazioni riguardanti i segmenti di testo e dati dell'address space in quanto servono per caricare le pagine non ancora mappate nei frame ed è necessario salvare il vnode relativo all'eseguibile in modo tale da poterci fare accesso.
 
 #### Struttura dati
 ```c
@@ -46,7 +46,7 @@ struct addrspace {
 
 
 #### Implementazione
-Le funzioni presenti in [addrespace.c](./kern/vm/addrespace.c) si occupano della gestione degli spazi di indirizzi e delle operazioni di memoria virtuale per OS/161, le loro definizioni sono in [addrespace.h](./kern/include/addrspace.h).
+Le funzioni presenti in [addrespace.c](./kern/vm/addrespace.c) si occupano della gestione degli spazi di indirizzi e delle operazioni di memoria virtuale per OS161, le loro definizioni sono in [addrespace.h](./kern/include/addrspace.h).
 ```c
 struct addrspace *as_create(void);
 int               as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid);
@@ -62,7 +62,7 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 Crea un nuovo spazio di indirizzi, alloca memoria per la struttura addrspace e ne inizializza i campi a 0.
 
 #### as_destroy
-libera la memoria associata a uno spazio di indirizzi: 
+Libera la memoria associata a uno spazio di indirizzi: 
 - all'interno è implementato un conteggio dei riferimenti al file, nel caso in cui questo sia 1, il file viene effettivamente chiuso; in caso contrario, viene semplicemente decrementato il conteggio
 
 #### as_copy
@@ -100,6 +100,8 @@ Per garantire correttezza ed evitare errori, alcune categorie di pagine vengono 
 	Le pagine allocate tramite kmalloc appartengono allo spazio di indirizzamento del kernel e non possono essere spostate. Ciò è dovuto al fatto che il kernel non utilizza la page table per tradurre gli indirizzi virtuali in fisici, quindi il loro spostamento potrebbe compromettere la coerenza del sistema.
 
 Quando una pagina viene rimossa dalla TLB, il suo bit di riferimento viene settato a 1. Questo serve a evitare che la pagina venga immediatamente selezionata come vittima, poiché è probabile che venga acceduta nuovamente nel breve periodo. Tale comportamento sfrutta il principio di località temporale, considerando che le pagine presenti nella TLB sono generalmente quelle accedute più di recente.
+
+Per velocizzare l'operazione di ricerca è stata implementata una hash table.
 
 La page table è strutturata nel seguente modo:
 #### Struttura dati
@@ -142,7 +144,7 @@ struct hash_entry *unused_ptr_list; //lista dove sono memorizzati tutti i blocch
 Le funzioni sono presenti in [pt.c](./kern/vm/pt.c) e vengono definite in [pt.h](./kern/include/pt.h
 
 #### pt_init
-inizializza la page table
+Inizializza la page table
 - Calcola il numero di frame disponibili nella RAM.
 - Alloca memoria per le entry della page table e inizializza le strutture di sincronizzazione (lock e condition variable).
 - Inizializza ogni entry della page table con valori predefiniti e assegna i lock e le variabili di condizione a ciascuna entry.
