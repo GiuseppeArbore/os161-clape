@@ -148,6 +148,7 @@ common_prog(int nargs, char **args)
 		reorder_swapfile();
 
 		kprintf("The thread exited with code %d\n",exit_code);
+		stats_print();
 	}
 
 	/*

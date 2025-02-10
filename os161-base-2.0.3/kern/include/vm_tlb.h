@@ -62,4 +62,6 @@ void tlb_invalidate_all(void);
 
 void print_tlb(void);
 
+int vm_fault(int faulttype, vaddr_t faultaddress);
+
 #endif /* _VM_TLB_H_ */

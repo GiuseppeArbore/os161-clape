@@ -12,7 +12,6 @@
 /*
 * usata per gestire il tlb miss
 */
-#if OPT_PROJECT
 int vm_fault(int faulttype, vaddr_t faultaddress){
 
     #if OPT_DEBUG
@@ -26,7 +25,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress){
     faultaddress &= PAGE_FRAME; // Estraggo l'indirizzo del frame che ha causato l'errore (non era presente nella TLB)
 
     /* Aggiorno le statistiche */
-    add_tlb_fault(-1);
+    add_tlb_fault(FAULT);
     /* Estraggo l'indirizzo virtuale della pagina corrispondente */
     switch (faulttype)
     {
@@ -57,7 +56,6 @@ int vm_fault(int faulttype, vaddr_t faultaddress){
     splx(spl);
     return 0;
 }
-#endif
 
 int tlb_victim(void){
     // RR algoritmo
@@ -104,7 +102,7 @@ int tlb_insert(vaddr_t faultvaddr, paddr_t faultpaddr){
                 }
                 tlb_write(hi, lo, entry);
             /*aggiotno tlb fault free*/
-            add_tlb_type_fault(FREE_FAULT); //TO DO: implementare add_tlb_type_fault, capire esattamente quale fault
+            add_tlb_fault(FREE_FAULT); //TO DO: implementare add_tlb_type_fault, capire esattamente quale fault
             
             return 0;
         }
@@ -124,7 +122,7 @@ int tlb_insert(vaddr_t faultvaddr, paddr_t faultpaddr){
     update_tlb_bit(prevHi, curproc->p_pid); //notifico alla pt
     tlb_write(hi, lo, entry);
     /*update tlb faults replace*/
-    add_tlb_fault(FREE_FAULT); 
+    add_tlb_fault(REPLACE_FAULT); 
     return 0;
 
 }
@@ -145,7 +143,7 @@ int tlb_invalidate_entry(paddr_t paddr){
         tlb_read(&hi, &lo, i);
         frame_addr_stored = lo & TLBLO_PPAGE ; // estraggo il phisical address dallo store
         if(frame_addr_stored == frame_addr)
-            tlb_write(TLBHI_INVALID(i), TLBLO_INVALID());
+            tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
     }
     return 0;
 }

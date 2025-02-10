@@ -50,7 +50,7 @@
 #include <vnode.h>
 
 
-//TODO: CLAPE: aggiunto, controllare
+
 static struct _processTable{
 	int active;	// 0 = inactive, 1 = active
 	struct proc *proc[MAX_PROC+1]; 
@@ -83,7 +83,7 @@ static void
 proc_init_waitpid(struct proc *proc, const char *name) {
   /* search a free index in table using a circular strategy */
   int i;
-  spinlock_acquire(&processTable.lk);
+  spinlock_acquire(&processTable.lock);
   i = processTable.last_i+1;
   proc->p_pid = 0;
   if (i>MAX_PROC) i=1;
@@ -97,13 +97,13 @@ proc_init_waitpid(struct proc *proc, const char *name) {
     i++;
     if (i>MAX_PROC) i=1;
   }
-  spinlock_release(&processTable.lk);
+  spinlock_release(&processTable.lock);
   if (proc->p_pid==0) {
     panic("too many processes. proc table is full\n");
   }
   proc->p_status = 0;
   proc->p_cv = cv_create(name);
-  proc->lock = lock_create(name);
+  proc->p_lock_cv = lock_create(name);
 }
 
 /*
@@ -114,14 +114,14 @@ static void
 proc_end_waitpid(struct proc *proc) {
   /* remove the process from the table */
   int i;
-  spinlock_acquire(&processTable.lk);
+  spinlock_acquire(&processTable.lock);
   i = proc->p_pid;
   KASSERT(i>0 && i<=MAX_PROC);
   processTable.proc[i] = NULL;
-  spinlock_release(&processTable.lk);
+  spinlock_release(&processTable.lock);
 
   cv_destroy(proc->p_cv);
-  lock_destroy(proc->lock);
+  lock_destroy(proc->p_lock_cv);
 }
 
 
@@ -264,7 +264,7 @@ proc_bootstrap(void)
 		panic("proc_create for kproc failed\n");
 	}
 
-	spinlock_init(&processTable.lk);
+	spinlock_init(&processTable.lock);
 	/* kernel process is not registered in the table */
 	processTable.active = 1;
 }
@@ -413,11 +413,11 @@ proc_wait(struct proc *proc)
 	KASSERT(proc != kproc);
 
 	/* wait on semaphore or condition variable */ 
-	lock_acquire(proc->lock);
+	lock_acquire(proc->p_lock_cv);
 	while(!proc->ended){ //Used to avoid starvation/deadlocks
-		cv_wait(proc->p_cv, proc->lock);
+		cv_wait(proc->p_cv, proc->p_lock_cv);
 	}
-	lock_release(proc->lock);
+	lock_release(proc->p_lock_cv);
 	return_status = proc->p_status;
 	proc_destroy(proc);
 	return return_status;

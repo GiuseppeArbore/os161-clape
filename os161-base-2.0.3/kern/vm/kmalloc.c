@@ -1201,7 +1201,8 @@ kmalloc(size_t sz)
 #ifdef LABELS
 	return subpage_kmalloc(sz, label);
 #else
-	return subpage_kmalloc(sz);
+	void *ptr = subpage_kmalloc(sz);
+	return ptr;
 #endif
 }
 

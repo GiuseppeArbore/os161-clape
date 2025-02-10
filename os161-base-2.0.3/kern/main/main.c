@@ -50,9 +50,8 @@
 #include <test.h>
 #include <version.h>
 #include "autoconf.h"  // for pseudoconfig
-#include "hello.h"
-#include "opt-hello.h"
 #include "opt-dumbvm.h"
+
 
 
 #if !OPT_DUMBVM
@@ -136,9 +135,11 @@ boot(void)
 	kheap_nextgeneration();
 
 	/* Late phase of initialization. */
-	#if OPT_PROJECT
+	#if !OPT_DUMBVM
 	create_sem_fork();
 	#endif
+	
+
 	vm_bootstrap();
 	kprintf_bootstrap();
 	thread_start_cpus();

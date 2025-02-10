@@ -163,13 +163,12 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	npages = memsize / PAGE_SIZE;
 
 
-	//CLAPE: Non le stiamo usando, capire che farci
 	(void)readable;
 	(void)writeable;
 	(void)executable;
 
 	if (as->as_vbase1 == 0) {
-		DEBUG(DB_VM, "as_define_region: vaddr 0x%x \n", vaddr);
+		DEBUG(DB_VM, "as_define_region, text : vaddr 0x%x \n", vaddr);
 		as->as_vbase1 = vaddr;
 		as->as_npages1 = npages;
 		as->initial_offset1 = initial_offset;
@@ -177,14 +176,14 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	}
 
 	if (as->as_vbase2 == 0) {
-		DEBUG(DB_VM, "as_define_region: vaddr 0x%x \n", vaddr);
+		DEBUG(DB_VM, "as_define_region, data : vaddr 0x%x \n", vaddr);
 		as->as_vbase2 = vaddr;
 		as->as_npages2 = npages;
 		as->initial_offset2 = initial_offset;
 		return 0;
 	}
 
-	kprintf("Too many regions\n");
+	kprintf("dumbvm: Warning : Too many regions\n");
 	return ENOSYS;
 }
 
@@ -238,7 +237,7 @@ int as_is_ok(void){
 	else if(as->as_vbase1 == 0 || 
 		as->as_vbase2 == 0 ||
 		as->as_npages1 == 0 ||
-		as->as_npages2 == 0 ||
+		as->as_npages2 == 0 
 		){
 		return 0;
 	}
@@ -247,8 +246,11 @@ int as_is_ok(void){
 
 
 void vm_bootstrap(void){
+
 	swap_init();
 	pt_init();
+	hashtable_init();
+	
 }
 
 void vm_tlbshootdown(const struct tlbshootdown *ts){
@@ -257,27 +259,30 @@ void vm_tlbshootdown(const struct tlbshootdown *ts){
 }
 
 void vm_shutdown(void){
-	for (int i = 0; i < page_table->n_entry; i++)
-	{
-		if (page_table->entries[i].ctrl!=0)
-		{
-			kprintf("Page %d is still in the page table\n",i); //TODO: CLAPE: capire bene se entry o page
-			/*
-				kprintf("Entry%d has not been freed! ctl=%d, pid=%d\n",i,peps.pt[i].ctl,peps.pt[i].pid);
 
-			*/
-		}
-		if (page_table->entries[i].page==1)
+	#if OPT_DEBUG
+	for (int i = 0; i < page_table.n_entry; i++)
+	{
+		if (page_table.entries[i].ctrl!=0)
 		{
-			kprintf("errore , capire bene cosa stampare\n"); //TODO: CLAPE
-			/*
-				kprintf("It looks like some errors with free occurred: entry%d, process %d\n",i,peps.pt[i].pid);
-			*/
+			kprintf("Entry %d is still in the page table\n",i); 
+		}
+		if (page_table.entries[i].page==1)
+		{
+			kprintf("errore nella free\n"); 
 		}		
 	}
+	#endif
 	stats_print();
 }
 
+static paddr_t getppages(unsigned long n_pages){
+	paddr_t addr;
+
+	addr = ram_stealmem(n_pages);
+
+	return addr;
+}
 
 vaddr_t alloc_kpages(unsigned n_pages){
 	int spl = splhigh();
@@ -289,15 +294,21 @@ vaddr_t alloc_kpages(unsigned n_pages){
 		paddr = getppages(n_pages);
 	}
 	else {
+		#if OPT_DEBUG
 		nkmalloc+=n_pages;
+		#endif
 		spinlock_release(&stealmem_lock);
-		paddr = get_contiguous_pages(n_pages, spl);
+		paddr = get_contiguous_pages(n_pages);
 		spinlock_acquire(&stealmem_lock);
 	}
 
 	spinlock_release(&stealmem_lock);
 
 	splx(spl);
+	
+
+	KASSERT(PADDR_TO_KVADDR(paddr)>0x80000000 && PADDR_TO_KVADDR(paddr)<=0x9FFFFFFF);
+
 
 	return PADDR_TO_KVADDR(paddr);
 }
@@ -306,18 +317,13 @@ void free_kpages(vaddr_t addr){
 
 	int spl = splhigh();
 	
-	//todo: CLAPE: si potrebbe aggiungere un controlla su pt attiva e su indirizzo
-	paddr_t paddr = KVADDR_TO_PADDR(addr);
+	//paddr_t paddr = KVADDR_TO_PADDR(addr);
 
 	spinlock_acquire(&stealmem_lock);
 
-	if (!pt_active || addr< PADDR_TO_KVADDR(page_table->firstfreepaddr)){
-		ram_stealmem_free(paddr); //TODO: clape: aggiunto
-	}
-	else {
-		//nkmalloc--;
+	if (pt_active && addr>=PADDR_TO_KVADDR(page_table.first_free_paddr)){
 		spinlock_release(&stealmem_lock);
-		free_contiguous_pages(paddr, spl);
+		free_contiguous_pages(addr);
 		spinlock_acquire(&stealmem_lock);
 	}
 
@@ -326,16 +332,14 @@ void free_kpages(vaddr_t addr){
 	splx(spl);
 }
 
-void address_space_init(void){
-	spinlock_init(&stealmem_lock); //todo: importare stealmem_lock
+void addrspace_init(void){
+	spinlock_init(&stealmem_lock);
 	pt_active=0;
 }
 
-static paddr_t getppages(unsigned long n_pages){
-	paddr_t addr;
-
-	addr = ram_stealmem(n_pages);
-
-	return addr;
+void create_sem_fork(void) {
+	sem_fork= sem_create("sem_fork", 1);
 }
+
+
 

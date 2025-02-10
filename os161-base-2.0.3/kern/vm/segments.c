@@ -1,4 +1,4 @@
-#include "segment.h"
+#include "segments.h"
 
 
 /**
@@ -169,7 +169,7 @@ int load_page(vaddr_t vaddr, pid_t pid, paddr_t paddr){
 
             if((int)(as->ph2.p_filesz+as->initial_offset2) - (int)(vaddr - as->as_vbase2)<0){
                 bzero((void*)PADDR_TO_KVADDR(paddr), PAGE_SIZE);
-                add_pt_type_fault(ELF);
+                add_page_fault(ELF_FAULT);
                 DEBUG(DB_VM,"CARICA ELF in 0x%x (virtuale: 0x%x) per il processo %d\n",paddr, vaddr, pid);
                 return 0;
             }

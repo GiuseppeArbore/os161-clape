@@ -442,27 +442,27 @@ file		test/semunit.c
 file		test/kmalloctest.c
 file		test/fstest.c
 optfile net	test/nettest.c
-file        vm/segment.c
-file        vm/swapfile.c
-file        vm/vmstats.c
-optfile project       vm/coremap.c
-optfile project      vm/pt.c
-optfile project       vm/vm_tlb.c
+file       	vm/segments.c
+file		vm/swapfile.c
+file		vm/vmstats.c
+
 
 
 # NEW PDS WORK
 
 #da capire
-defoption   syscalls
-optfile syscalls    syscall/file_syscalls.c
-optfile syscalls    syscall/proc_syscalls.c
+file	syscall/file_syscalls.c
+file	syscall/proc_syscalls.c
 
-
-#da capire
-defoption synch  
 
 
 defoption test
 defoption sw_list
 defoption project
 defoption debug
+defoption fork
+
+
+optfile project       vm/coremap.c
+optfile project      vm/pt.c
+optfile project       vm/vm_tlb.c
