@@ -141,7 +141,7 @@ struct hash_entry *unused_ptr_list; //lista dove sono memorizzati tutti i blocch
 ```
 
 #### Implementazione
-Le funzioni sono presenti in [pt.c](./kern/vm/pt.c) e vengono definite in [pt.h](./kern/include/pt.h
+Le funzioni sono presenti in [pt.c](./kern/vm/pt.c) e vengono definite in [pt.h](./kern/include/pt.h)
 
 #### pt_init
 Inizializza la page table
@@ -237,10 +237,10 @@ Funzione usata per inizializzare la bitmap, allocando e inizializzando a 0 l'arr
 ```
 
 #### destroy_bitmap
-Disattiva la coremap impostando a 0 il flagger indicare che la coremap sia attiva e liberando la memoria allocata per la bitmap. 
+Disattiva la coremap impostando a 0 il flag usato per indicare che la bitmap è attiva e liberando la memoria allocata per la bitmap. 
 
 #### bitmap_is_active
-Verifica se la bitmap è attiva restituiendo il valore del flag bitmapFtrrFramesActive.
+Verifica se la bitmap è attiva restituiendo il valore del flag bitmapFreeFramesActive.
 
 
 
