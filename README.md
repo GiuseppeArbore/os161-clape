@@ -838,8 +838,6 @@ gestisce l'inserimento di una nuova mappatura nella **TLB**. Prende un indirizzo
 4. Se la pagina non è di sola lettura, abilita il permesso di scrittura con il bit `TLBLO_DIRTY`.
 
 
-
-
 ```c
 int tlb_insert(vaddr_t faultvaddr, paddr_t faultpaddr){
    
@@ -997,7 +995,6 @@ void reorder_swapfile(void){
 ```
 
 
-
 ### Altre modifiche:
 Noi abbiamo anche modificato l'implementazione delle system calls necessarie (fork, waitpid, _exit) e alcune parti di `loadelf.c`. 
 
@@ -1064,9 +1061,6 @@ Le seguenti statistiche sono state collezionale:
 
   
 ## Note per effettuare i test
-Prima di lanciare i test, è richiesto di aumentare la memoria RAM disponibile a 2MB (per farlo, vedere il file sys161.conf presente in root) a causa di strutture dati aggiuntive da noi usate. 
-# Verificare se funziona anche con 1MB TODO CLAPE
-
 Per lo swapfile, è stata usare la raw partition di _LHD0.img_ . Nell'implementazione, si è deciso di usare come dimensione 9MB invece dei 5MB presenti nella versione predefinita. Per allinearsi, è quindi richiesto di lanciare il seguente comando all'interno della cartella _root_:
 
 ```
