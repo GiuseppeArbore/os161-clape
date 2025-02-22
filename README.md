@@ -69,6 +69,11 @@ Libera la memoria associata a uno spazio di indirizzi:
 Copia un addrespace esistente, duplicando uno spazio di indirizzi esistente da un processo a un altro. 
 - È utile per il fork di un processo, copiando le informazioni di memoria necessarie al nuovo processo.
 - Incrementa il numero di riferimenti in modo tale da poter gestire la futura distruzione.
+PEr effettuare la copia si avvale delle funzioni della page table, quali:
+- prepare_copy_pt: setta lo swap bit del vecchio processo ad 1
+- copy_swap_pages: assegno free al processo figlio e leggo e scrivo
+- copy_pt_entries: copia entry della page_table: se trova spazio con findspace, inserisce nella hashtable, altrimenti nel file di swap.
+- end_copy_pt: setta lo swap bit del vecchio processo a 0
 
 #### as_activate
 Attiva lo spazio di indirizzi corrente per il processo in esecuzione e invalida la TLB per evitare di usare traduzioni errate appartenenti ad un vecchio processo.
@@ -76,13 +81,13 @@ Attiva lo spazio di indirizzi corrente per il processo in esecuzione e invalida 
 #### as_define_region
 Definisce una nuova regione di memoria in uno spazio di indirizzi
 - allinea la regione e calcola l'indirizzo virtuale e l'offset
-- calcola il numero di pagine necessarieimposta la virtual_base e la dimensione.
+- calcola il numero di pagine necessarie e imposta la virtual_base e la dimensione.
 
 #### as_define_stack
 Definisce lo spazio per lo stack utente in uno spazio di indirizzi, inizializzando il puntatore allo stack
 
 #### alloc_kpages
-Effettua l'allocazione di pagine contigue del kernel, il comportamento varia nel caso in base allo stato della page table:
+Effettua l'allocazione di pagine contigue del kernel, il comportamento varia in base allo stato della page table:
 - Se la page table è attiva, usa la page table chiamando la funzione get_contiguous_pages.
 - Se la page table non è atitva, usa la funzione getppages che prende della memoria dalla ram usando la funzione ram_stealmem.
 
@@ -107,7 +112,7 @@ Per garantire correttezza ed evitare errori, alcune categorie di pagine vengono 
 	- Pagine allocate con kmalloc:
 	Le pagine allocate tramite kmalloc appartengono allo spazio di indirizzamento del kernel e non possono essere spostate. Ciò è dovuto al fatto che il kernel non utilizza la page table per tradurre gli indirizzi virtuali in fisici, quindi il loro spostamento potrebbe compromettere la coerenza del sistema.
 
-Quando una pagina viene rimossa dalla TLB, il suo bit di riferimento viene settato a 1. Questo serve a evitare che la pagina venga immediatamente selezionata come vittima, poiché è probabile che venga acceduta nuovamente nel breve periodo. Tale comportamento sfrutta il principio di località temporale, considerando che le pagine presenti nella TLB sono generalmente quelle accedute più di recente.
+Quando una pagina viene acceduta o rimossa dalla TLB, il suo bit di riferimento viene settato a 1. Questo serve a evitare che la pagina venga immediatamente selezionata come vittima, poiché è probabile che venga acceduta nuovamente nel breve periodo. Tale comportamento sfrutta il principio di località temporale, considerando che le pagine presenti nella TLB sono generalmente quelle accedute più di recente.
 
 Per velocizzare l'operazione di ricerca è stata implementata una hash table.
 
@@ -189,10 +194,10 @@ Cerca una pagina libera nella tabella che non sia valida, in IO, in swap o riser
 Implementa un meccanismo per trovare una pagina "vittima" da sostituire, controllando il bit di riferimento e altre condizioni.
 - Scorre la page table e cerca pagine che non sono in uso
 	- La pagina vittima viene salvata nello spazio di swap se necessario, e la nuova pagina viene aggiunta alla hash table.
-- Nel caso in cui non ci sia una vittima selezionabile, attende che una diventi disponibile
+- Nel caso in cui non ci sia una vittima selezionabile, attende che una diventi disponibile.
 
 #### get_contiguous_pages
-Cerca e alloca un blocco di pagine consecutive nella memoria fisica
+Cerca e alloca un blocco di pagine consecutive nella memoria fisica - usa first fit
 - se necessario, trova vittime per creare spazio
 - nel caso in cui ci siano abbastanza pagine disponibili, le alloca al richiedente e inserisce all'interno di page_table.contigous il numero di pagine designate.
 
@@ -201,7 +206,7 @@ Libera le pagine contigue allocate nella page table per un determinato indirizzo
 - calcola l'indice relativo all'indirizzo e libera le pagine associate
 
 #### pt_get_paddr
-Converte l'indirizzo fisico nel corrispondente indirizzo virtuale usando la funzione get_index_from_hash
+Converte l'indirizzo virtuale nel corrispondente indirizzo fisico usando la funzione get_index_from_hash
 - moltiplica l'indice restituito per la dimensione delle pagine e aggiunge l'indirizzo fisico della prima pagina, per ottenere così l'indirizzo fisico cercato.
 
 #### hashtable_init
