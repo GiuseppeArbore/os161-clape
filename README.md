@@ -69,7 +69,8 @@ Libera la memoria associata a uno spazio di indirizzi:
 Copia un addrespace esistente, duplicando uno spazio di indirizzi esistente da un processo a un altro. 
 - È utile per il fork di un processo, copiando le informazioni di memoria necessarie al nuovo processo.
 - Incrementa il numero di riferimenti in modo tale da poter gestire la futura distruzione.
-PEr effettuare la copia si avvale delle funzioni della page table, quali:
+
+Per effettuare la copia si avvale delle funzioni della page table, quali:
 - prepare_copy_pt: setta lo swap bit del vecchio processo ad 1
 - copy_swap_pages: assegno free al processo figlio e leggo e scrivo
 - copy_pt_entries: copia entry della page_table: se trova spazio con findspace, inserisce nella hashtable, altrimenti nel file di swap.
