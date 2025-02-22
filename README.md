@@ -46,7 +46,7 @@ struct addrspace {
 
 
 #### Implementazione
-Le funzioni presenti in [addrespace.c](./kern/vm/addrespace.c) si occupano della gestione degli spazi di indirizzi e delle operazioni di memoria virtuale per OS161, le loro definizioni sono in [addrespace.h](./kern/include/addrspace.h).
+Le funzioni presenti in [addrespace.c](./os161-base-2.0.3/kern/vm/addrespace.c) si occupano della gestione degli spazi di indirizzi e delle operazioni di memoria virtuale per OS161, le loro definizioni sono in [addrespace.h](./os161-base-2.0.3/kern/include/addrspace.h).
 ```c
 struct addrspace *as_create(void);
 int               as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid);
@@ -155,7 +155,7 @@ struct hash_entry *unused_ptr_list; //lista dove sono memorizzati tutti i blocch
 ```
 
 #### Implementazione
-Le funzioni sono presenti in [pt.c](./kern/vm/pt.c) e vengono definite in [pt.h](./kern/include/pt.h)
+Le funzioni sono presenti in [pt.c](./os161-base-2.0.3/kern/vm/pt.c) e vengono definite in [pt.h](./os161-base-2.0.3/kern/include/pt.h)
 
 #### pt_init
 Inizializza la page table
@@ -239,8 +239,8 @@ Calcola l'entry della hash table usando una funzione di hash
 
 ### Coremap (g1)
 La coremap è una componente fondamentale per la gestione della memoria fisica all'interno del sistema di memoria virtuale. Questa struttura dati tiene traccia dei frame fisici disponibili nella memoria RAM del sistema. Per rappresentare lo stato dei frame è stato usato un array di interi bitmapFreeFrames dove ogni elemento rappresenta un frame fisico, in particolare se il valore è 0, il frame è libero; se il valore è 1, il frame è occupato.
-Le funzioni preseneti in [coremap.c](./kern/vm/coremap.c)
-Queste funzioni vengono definite in [coremap.h](./kern/include/coremap.h).
+Le funzioni preseneti in [coremap.c](./os161-base-2.0.3/kern/vm/coremap.c)
+Queste funzioni vengono definite in [coremap.h](./os161-base-2.0.3/kern/include/coremap.h).
 
 #### bitmap_init 
 Funzione usata per inizializzare la bitmap, allocando e inizializzando a 0 l'array bitmapFreeFrames. Dopo aver allocato e inizializzato imposta ad 1 il flag per indicare che la coremap sia attiva.
