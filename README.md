@@ -46,7 +46,7 @@ struct addrspace {
 
 
 #### Implementazione
-Le funzioni presenti in [addrespace.c](./os161-base-2.0.3/kern/vm/addrespace.c) si occupano della gestione degli spazi di indirizzi e delle operazioni di memoria virtuale per OS161, le loro definizioni sono in [addrespace.h](./os161-base-2.0.3/kern/include/addrspace.h).
+Le funzioni presenti in [addrespace.c](./os161-base-2.0.3/kern/vm/addrspace.c) si occupano della gestione degli spazi di indirizzi e delle operazioni di memoria virtuale per OS161, le loro definizioni sono in [addrespace.h](./os161-base-2.0.3/kern/include/addrspace.h).
 ```c
 struct addrspace *as_create(void);
 int               as_copy(struct addrspace *old, struct addrspace **ret, pid_t old_pid, pid_t new_pid);
